@@ -394,43 +394,90 @@
     } catch (e) { toast('Could not read that photo'); }
   }
 
-  /* ------------------------------------------------------------ batch add */
-  async function startBatch(files) {
-    const list = [...files].filter((f) => /^image\//.test(f.type) || !f.type).slice(0, 60);
-    if (!list.length) return;
-    ui.batch = { files: list, i: 0, added: 0, cur: null };
-    await loadBatchCurrent();
+  /* ------------------------------------------------------------ batch add: many photos, assign kinds in bulk */
+  const stem = (n) => String(n || '').replace(/\.[^.]+$/, '').trim().toLowerCase();
+  function matchItem(file) {
+    const k = stem(file.name); if (!k) return null;
+    const it = S.items.find((i) => i.id.toLowerCase() === k || String(i.name).toLowerCase() === k || (i.nameZh && i.nameZh.toLowerCase() === k));
+    return it ? it.id : null;
   }
-  async function loadBatchCurrent() {
-    const b = ui.batch; if (!b) return;
-    if (b.i >= b.files.length) return finishBatch();
-    b.cur = null; renderBatch();
-    try { b.cur = await readPhoto(b.files[b.i], S.profile.removeBg); } catch (e) { b.i++; return loadBatchCurrent(); }
+  async function startBatch(files) {
+    const list = [...files].filter((f) => /^image\//.test(f.type) || !f.type).slice(0, 200);
+    if (!list.length) return;
+    const b = ui.batch = { entries: [], loaded: 0, total: list.length, cat: 'Top' };
+    renderBatch();
+    for (const f of list) {
+      if (ui.batch !== b) return;      // cancelled
+      try {
+        const cur = await readPhoto(f, S.profile.removeBg);
+        b.entries.push({ name: f.name, cur, match: matchItem(f), cat: null, type: null, sel: false });
+      } catch (e) { /* unreadable photo: skip */ }
+      b.loaded++;
+      if (b.loaded % 4 === 0 || b.loaded === b.total) renderBatch();
+    }
     renderBatch();
   }
-  function finishBatch() {
-    const n = ui.batch ? ui.batch.added : 0;
-    ui.batch = null; renderBatch(); resetResults(); render();
-    if (n) toast(t('batch.done', { n }));
+  const bAssigned = (e) => !!(e.match || e.type);
+  function cellHtml(e, i) {
+    const label = e.match ? '→ ' + e.match : e.type ? t('type.' + e.type) : '?';
+    return `<button type="button" class="bcell${e.sel ? ' sel' : ''}${bAssigned(e) ? ' done' : ''}" data-act="bcell" data-i="${i}" id="bc-${i}" aria-pressed="${e.sel}"><img src="${e.cur.dataUrl}" alt=""><span class="bl">${esc(label)}</span></button>`;
   }
-  function batchAdd(cat, type) {
-    const b = ui.batch; if (!b || !b.cur) return;
-    const d = { cat, type, color: b.cur.color };
-    const a = E.autoTags(cat, type, d.color);
-    const it = { id: E.nextId(S, cat), addedAt: Date.now(), cat, type, name: autoName('en', d), nameZh: autoName('zh', d), color: d.color, occasions: a.occasions, weather: a.weather, laundry: false };
-    S.items.push(it); photos[it.id] = b.cur.dataUrl; OF.store.putPhoto(it.id, b.cur.dataUrl);
-    save(); b.added++; b.i++; loadBatchCurrent();
+  function batchCounts() {
+    const b = ui.batch, n = b.entries.filter(bAssigned).length, sel = b.entries.filter((e) => e.sel).length;
+    return { n, sel, left: b.entries.length - n };
+  }
+  function refreshBatchBar() {
+    const b = ui.batch; if (!b) return;
+    const c = batchCounts(), save = $('bsave'), info = $('binfo');
+    if (save) { save.textContent = t('batch.save', { n: c.n }); save.disabled = c.n === 0; }
+    if (info) info.textContent = t('batch.info', { sel: c.sel, left: c.left });
   }
   function renderBatch() {
     const root = $('sheet-root'), b = ui.batch;
     if (!b) { if (!ui.sheet) root.innerHTML = ''; return; }
-    const prev = b.cur ? `<img class="photo-prev" style="width:140px;height:140px" src="${b.cur.dataUrl}" alt="">` : `<div class="photo-prev sw" style="width:140px;height:140px"></div>`;
-    root.innerHTML = `<div class="overlay"><div class="sheet" role="dialog" aria-modal="true">
-      <div class="row between"><h2>${esc(t('batch.title', { i: Math.min(b.i + 1, b.files.length), n: b.files.length }))}</h2><button class="btn small ghost" data-act="batch-stop">${esc(t('batch.stop'))}</button></div>
-      <div class="row"><div>${prev}</div><p class="muted small grow">${esc(t('batch.hint'))}</p></div>
-      ${E.CATEGORIES.map((c) => `<div class="kgroup"><span class="klabel">${esc(t('cat.' + c))}</span><div class="chips">${E.TYPES[c].map((x) => chip(t('type.' + x), false, 'batch-kind', { c, v: x })).join('')}</div></div>`).join('')}
-      <div class="row end"><button class="btn" data-act="batch-skip">${esc(t('batch.skip'))}</button></div></div></div>`;
+    const loading = b.loaded < b.total;
+    const types = E.TYPES[b.cat] || [];
+    root.innerHTML = `<div class="overlay"><div class="sheet batch" role="dialog" aria-modal="true">
+      <div class="row between"><h2>${esc(t('batch.title'))}</h2><button class="btn small ghost" data-act="batch-stop">${esc(t('common.close'))}</button></div>
+      ${loading ? `<p class="muted small">${esc(t('batch.loading', { i: b.loaded, n: b.total }))}</p>` : `<p class="muted small">${esc(t('batch.hint'))}</p>`}
+      <div class="row wrap"><button class="btn small" data-act="bsel-all">${esc(t('batch.all'))}</button><button class="btn small" data-act="bsel-open">${esc(t('batch.open'))}</button><button class="btn small ghost" data-act="bsel-none">${esc(t('batch.none'))}</button></div>
+      <p class="small muted" id="binfo"></p>
+      <div class="bgrid">${b.entries.map(cellHtml).join('')}</div>
+      <div class="bbar"><div class="chips">${E.CATEGORIES.map((c) => chip(t('cat.' + c), b.cat === c, 'bcat', { c })).join('')}</div>
+      <div class="chips">${types.map((x) => chip(t('type.' + x), false, 'bkind', { c: b.cat, v: x })).join('')}</div>
+      <button class="btn primary block" id="bsave" data-act="bsave">${esc(t('batch.save', { n: 0 }))}</button></div></div></div>`;
+    refreshBatchBar();
   }
+  function bUpdateCell(i) {
+    const e = ui.batch.entries[i], el = $('bc-' + i); if (!el) return;
+    el.outerHTML = cellHtml(e, i);
+  }
+  function bSelect(fn) { ui.batch.entries.forEach((e, i) => { const v = fn(e); if (v !== e.sel) { e.sel = v; bUpdateCell(i); } }); refreshBatchBar(); }
+  function bAssign(cat, type) {
+    const b = ui.batch; let any = false;
+    b.entries.forEach((e, i) => { if (e.sel) { e.cat = cat; e.type = type; e.sel = false; any = true; bUpdateCell(i); } });
+    if (!any) { toast(t('batch.pick')); return; }
+    refreshBatchBar();
+  }
+  function bSave() {
+    const b = ui.batch; let added = 0, attached = 0;
+    b.entries.forEach((e) => {
+      if (e.match) {
+        const it = byId(e.match);
+        if (it) { photos[it.id] = e.cur.dataUrl; OF.store.putPhoto(it.id, e.cur.dataUrl); attached++; }
+      } else if (e.type) {
+        const d = { cat: e.cat, type: e.type, color: e.cur.color }, a = E.autoTags(e.cat, e.type, d.color);
+        const it = { id: E.nextId(S, e.cat), addedAt: Date.now(), cat: e.cat, type: e.type, name: autoName('en', d), nameZh: autoName('zh', d), color: d.color, occasions: a.occasions, weather: a.weather, laundry: false };
+        S.items.push(it); photos[it.id] = e.cur.dataUrl; OF.store.putPhoto(it.id, e.cur.dataUrl); added++;
+      }
+    });
+    save(); resetResults();
+    b.entries = b.entries.filter((e) => !bAssigned(e));
+    if (b.entries.length) { renderBatch(); } else { ui.batch = null; renderBatch(); }
+    render();
+    toast(t('batch.done', { n: added, m: attached }));
+  }
+  function closeBatch() { ui.batch = null; renderBatch(); render(); }
 
   /* ------------------------------------------------------------ selfie colour picker (nothing is stored) */
   function openSelfie(file) {
@@ -590,9 +637,14 @@
       }
       case 'fb-reset': S.feedback = { item: {}, color: {} }; save(); resetResults(); toast(t('toast.fbReset')); break;
       case 'pick-many': $('fileMany').click(); break;
-      case 'batch-kind': batchAdd(D.c, D.v); break;
-      case 'batch-skip': if (ui.batch) { ui.batch.i++; loadBatchCurrent(); } break;
-      case 'batch-stop': finishBatch(); break;
+      case 'bcell': { const e = ui.batch.entries[+D.i]; e.sel = !e.sel; bUpdateCell(+D.i); refreshBatchBar(); break; }
+      case 'bsel-all': bSelect(() => true); break;
+      case 'bsel-open': bSelect((e) => !bAssigned(e)); break;
+      case 'bsel-none': bSelect(() => false); break;
+      case 'bcat': ui.batch.cat = D.c; renderBatch(); break;
+      case 'bkind': bAssign(D.c, D.v); break;
+      case 'bsave': bSave(); break;
+      case 'batch-stop': closeBatch(); break;
       case 'selfie': $('fileSelfie').click(); break;
       case 'selfie-mode': ui.selfie.mode = D.v; document.querySelectorAll('[data-act="selfie-mode"]').forEach((b) => { const on = b.dataset.v === D.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); break;
       case 'selfie-done': closeSelfie(); break;

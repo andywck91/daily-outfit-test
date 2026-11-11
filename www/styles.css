@@ -90,3 +90,13 @@ table.gap td { text-align: center; padding: 8px 4px; border-radius: 8px; font-we
 details#f-fine { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; } details#f-fine summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 40px; display: flex; align-items: center; }
 
 .fbbox { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 6px; }
+
+.sheet.batch { display: flex; flex-direction: column; padding-bottom: 0; }
+.bgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 6px 0 12px; }
+.bcell { position: relative; padding: 0; border: 3px solid transparent; border-radius: 12px; background: var(--chip); overflow: hidden; cursor: pointer; aspect-ratio: 1; }
+.bcell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bcell.sel { border-color: var(--accent); }
+.bcell .bl { position: absolute; left: 0; right: 0; bottom: 0; font-size: 12px; padding: 2px 4px; background: rgba(0,0,0,.6); color: #fff; text-align: center; }
+.bcell.done .bl { background: var(--accent); color: var(--accent-ink); }
+.bbar { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 0 calc(12px + env(safe-area-inset-bottom)); }
+.bbar .btn:disabled { opacity: .5; }
