@@ -102,7 +102,7 @@
   function defaultState() {
     return {
       version: 1,
-      profile: { name: '', figure: 'feminine', skin: '#E8BFA0', hairColor: '#2A1F1C', hairLength: 'long', makeup: true, lang: 'en', modest: false, removeBg: true },
+      profile: { name: '', figure: 'feminine', skin: '#E8BFA0', hairColor: '#2A1F1C', hairLength: 'long', makeup: true, lang: 'en', modest: false, removeBg: true, currency: 'RM' },
       settings: {
         n: 10,
         rule: { Top: true, Bottom: true, Dress: true, Outerwear: true, Shoes: false, Bag: false, Jewelry: false, Hat: false, Scarf: false, Belt: false, Eyewear: false, Watch: false },
@@ -640,7 +640,7 @@
     const col = (...keys) => head.findIndex((h) => keys.some((k) => h.startsWith(k)));
     const ix = {
       id: col('item id', 'id', '编号'), cat: col('category', '类别'), name: col('name (en)', 'name'), zh: col('名称'), color: col('color', 'colour', '颜色'),
-      occ: col('occasions', '场合'), wx: col('weather', '天气'), type: col('type', '种类'), style: col('style tags', '风格'), custom: col('custom kind', '自定义种类'),
+      occ: col('occasions', '场合'), wx: col('weather', '天气'), type: col('type', '种类'), style: col('style tags', '风格'), custom: col('custom kind', '自定义种类'), price: col('price', '价格'),
     };
     if (ix.cat < 0 || (ix.name < 0 && ix.zh < 0)) return { items: [], skipped: 0, error: 'columns' };
     const items = [], seen = new Set(state.items.map((i) => i.id));
@@ -661,28 +661,113 @@
       const styleCell = String(ix.style >= 0 ? row[ix.style] || '' : '').trim().toLowerCase();
       const type = TYPES[cat].includes(typeCell) ? typeCell : TYPES[cat].includes(styleCell) ? styleCell : inferType(cat, name + ' ' + zh);
       const custom = String(ix.custom >= 0 ? row[ix.custom] || '' : '').trim();
+      const price = ix.price >= 0 ? parseFloat(String(row[ix.price] || '').replace(/[^0-9.]/g, '')) || 0 : 0;
       const color = colorFromName(ix.color >= 0 ? row[ix.color] : '') || '#9AA0A6';
       const at = autoTags(cat, type, color);
       const it = {
-        id, cat, type, name: name || zh, nameZh: zh, color, ...(custom ? { custom } : {}),
+        id, cat, type, name: name || zh, nameZh: zh, color, ...(custom ? { custom } : {}), ...(price > 0 ? { price } : {}),
         occasions: occasions.length ? occasions : at.occasions, weather: weather.length ? weather : at.weather, laundry: false, addedAt: Date.now(),
       };
       items.push(it); tmp.items.push(it);
     }
     return { items, skipped, counters: tmp.counters };
   }
+  /* ---------------------------------------------------------------- travel packing */
+  /**
+   * Pick one outfit per day while re-using bottoms, shoes, bags and layers, so the suitcase stays small.
+   * trip: {days, occasions:[...], wx:[...]}  -> {days:[{day, occasion, cond, parts}], packing:[{item, days}], missing:[day,...]}
+   */
+  function planTrip(state, trip, seed) {
+    const D = Math.max(1, Math.min(21, Math.round(trip.days) || 1));
+    const occs = trip.occasions && trip.occasions.length ? trip.occasions : ['Casual'];
+    const wxs = trip.wx && trip.wx.length ? trip.wx : ['hot_humid'];
+    const clean = { ...state, log: [], items: state.items.map((i) => ({ ...i, laundry: false })) };
+    const cap = { Top: D > 7 ? 2 : 1, Bottom: 3, Dress: D > 7 ? 2 : 1 };
+    const use = {}, days = [], missing = [];
+    const officeLike = ['Business', 'ClientVisit', 'Formal'];
+    for (let d = 0; d < D; d++) {
+      const occasion = occs[d % occs.length];
+      const cond = E_conditions(wxs[d % wxs.length], officeLike.includes(occasion));
+      const exclude = Object.keys(use).filter((id) => {
+        const it = clean.items.find((x) => x.id === id);
+        return it && cap[it.cat] && use[id] >= cap[it.cat];
+      });
+      let pool = [];
+      for (let k = 0; k < 3; k++) pool = pool.concat(generate(clean, occasion, cond, { rng: mulberry32((seed || 7) * 101 + d * 13 + k), exclude, _noSuggest: true }).looks);
+      if (!pool.length) pool = generate(clean, occasion, cond, { rng: mulberry32((seed || 7) + d), _noSuggest: true }).looks;   // allow re-wearing rather than nothing
+      if (!pool.length) { days.push({ day: d + 1, occasion, cond, parts: {} }); missing.push(d + 1); continue; }
+      const prev = days.length ? days[days.length - 1].parts : {};
+      const value = (l) => {
+        let v = l.score;
+        for (const c of CATEGORIES) {
+          const it = l.parts[c]; if (!it) continue;
+          const n = use[it.id] || 0;
+          if (c === 'Top' || c === 'Dress') v -= n * 2.5;
+          else if (n > 0) v += 1.5;
+          if (prev[c] && prev[c].id === it.id && (c === 'Top' || c === 'Dress')) v -= 4;
+        }
+        return v;
+      };
+      pool.sort((a, b) => value(b) - value(a));
+      const best = pool[0];
+      const parts = {};
+      for (const c of CATEGORIES) if (best.parts[c]) { parts[c] = best.parts[c]; use[best.parts[c].id] = (use[best.parts[c].id] || 0) + 1; }
+      days.push({ day: d + 1, occasion, cond, parts });
+    }
+    const byItem = {};
+    days.forEach((x) => Object.values(x.parts).forEach((it) => { (byItem[it.id] = byItem[it.id] || { item: it, days: [] }).days.push(x.day); }));
+    const packing = Object.values(byItem).sort((a, b) => CATEGORIES.indexOf(a.item.cat) - CATEGORIES.indexOf(b.item.cat) || b.days.length - a.days.length);
+    // wear the bulky things on the plane: most-used layer and most-used sturdy shoes
+    const most = (cat, types) => packing.filter((p) => p.item.cat === cat && (!types || types.includes(p.item.type))).sort((a, b) => b.days.length - a.days.length)[0];
+    const wear = [most('Outerwear'), most('Shoes', ['boots', 'sneakers', 'loafers', 'wedges']) || most('Shoes')].filter(Boolean).map((p) => p.item.id);
+    return { days, packing, missing, wear };
+  }
+  function E_conditions(wx, aircon) { return conditions(null, wx, aircon); }
+
+  /* ---------------------------------------------------------------- wear statistics */
+  /** opts: {days: 30|90|0 (all), today: Date|string} */
+  function stats(state, opts) {
+    opts = opts || {};
+    const today = opts.today ? new Date(opts.today) : new Date();
+    const since = opts.days ? new Date(today.getTime() - opts.days * 864e5) : null;
+    const inPeriod = (e) => !since || !e.date || new Date(e.date + 'T00:00:00') >= since;
+    const all = {}, per = {}, occ = {};
+    let outfits = 0;
+    for (const e of state.log) {
+      const ids = [...new Set(Object.values(e.items || {}))];
+      const inP = inPeriod(e);
+      if (inP) { outfits++; occ[e.occasion] = (occ[e.occasion] || 0) + 1; }
+      ids.forEach((id) => { all[id] = (all[id] || 0) + 1; if (inP) per[id] = (per[id] || 0) + 1; });
+    }
+    const byId = {}; state.items.forEach((i) => (byId[i.id] = i));
+    const clothing = state.items.filter((i) => CLOTHING.includes(i.cat));
+    const worn = clothing.filter((i) => per[i.id] > 0);
+    const most = state.items.filter((i) => per[i.id] > 0).map((item) => ({ item, n: per[item.id] })).sort((a, b) => b.n - a.n).slice(0, 5);
+    const unused = clothing.filter((i) => !per[i.id]).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+    const priced = state.items.filter((i) => +i.price > 0).map((item) => {
+      const wears = all[item.id] || 0;
+      return { item, wears, cpw: wears ? item.price / wears : null };
+    });
+    const worst = priced.filter((x) => x.cpw != null).sort((a, b) => b.cpw - a.cpw).slice(0, 5);
+    const neverWorn = priced.filter((x) => x.wears === 0);
+    return {
+      outfits, wornCount: worn.length, clothingCount: clothing.length, utilisation: clothing.length ? worn.length / clothing.length : 0,
+      most, unused, occ, worst, neverWorn, neverWornValue: neverWorn.reduce((a, x) => a + (+x.item.price || 0), 0), pricedCount: priced.length,
+    };
+  }
+
   function wardrobeCSV(state) {
     const lbl = { hot_humid: 'Hot & Humid', hot_sunny: 'Hot & Sunny', rainy: 'Rainy', aircon: 'Air-con / Cool', cool: 'Cool (Highlands)' };
     const occ = { ClientVisit: 'Client Visit' };
-    const rows = [['Item ID', 'Category', 'Name (EN)', '名称 (中文)', 'Color', 'Style tags', 'Occasions', 'Weather', 'Photo file', 'Type', 'Custom kind']];
+    const rows = [['Item ID', 'Category', 'Name (EN)', '名称 (中文)', 'Color', 'Style tags', 'Occasions', 'Weather', 'Photo file', 'Type', 'Custom kind', 'Price']];
     for (const i of state.items)
-      rows.push([i.id, i.cat, i.name, i.nameZh || '', i.color, '', (i.occasions || []).map((o) => occ[o] || o).join(', '), (i.weather || []).map((w) => lbl[w]).join(', '), '', i.type, i.custom || '']);
+      rows.push([i.id, i.cat, i.name, i.nameZh || '', i.color, '', (i.occasions || []).map((o) => occ[o] || o).join(', '), (i.weather || []).map((w) => lbl[w]).join(', '), '', i.type, i.custom || '', i.price || '']);
     return toCSV(rows);
   }
 
   Object.assign(OF, {
     engine: {
-      CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
+      planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
       minFeasibleN, inferType, relevant, autoTags, colorKey, applyFeedback, occasionFromText, FESTIVAL_COLORS,
     },

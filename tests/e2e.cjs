@@ -295,6 +295,47 @@ const ok = (m) => console.log('ok  -', m);
   await ctx2.close();
   await page.click('button[data-act="tab"][data-tab="wardrobe"]');
 
+  // trip packing list
+  await page.click('button[data-act="tab"][data-tab="trip"]');
+  await page.fill('#tripDays', '6');
+  await page.click('button[data-act="trip-occ"][data-v="Business"]');
+  await page.click('button[data-act="trip-occ"][data-v="Beach"]');
+  await page.click('button[data-act="trip-go"]');
+  await page.waitForSelector('.packrow');
+  s = await st();
+  assert.equal(s.trip.plan.days.length, 6);
+  const nPack = s.trip.plan.packing.length, naive = s.trip.plan.days.reduce((a, d) => a + Object.keys(d.parts).length, 0);
+  assert.ok(nPack < naive, 'fewer pieces than outfit-slots: ' + nPack + ' vs ' + naive);
+  await shot('trip');
+  await page.locator('.packrow input').first().check();
+  assert.ok(/1 of \d+ packed/.test(await page.locator('#tripProg').innerText()));
+  const [dlTxt] = await Promise.all([page.waitForEvent('download'), page.click('button[data-act="trip-share"]')]);
+  const txtPath = path.join(OUT, 'packing.txt'); await dlTxt.saveAs(txtPath);
+  const txt = fs.readFileSync(txtPath, 'utf8');
+  assert.ok(/Packing list \(6 days\)/.test(txt) && /\[x\] /.test(txt) && /Day 1/.test(txt));
+  ok('trip: 6 days, ' + nPack + ' pieces to pack instead of ' + naive + '; tick-off works; list shared as text');
+
+  // wear statistics + cost per wear
+  const wornTop = (await st()).log[0].items.Top;
+  await page.click('button[data-act="tab"][data-tab="wardrobe"]');
+  await page.click('button[data-act="filter"][data-c="All"]');
+  await page.click(`.item[data-id="${wornTop}"]`); await page.waitForSelector('.sheet');
+  await page.fill('#f-price', '120');
+  await page.click('button[data-act="sheet-save"]');
+  s = await st();
+  assert.equal(s.items.find((i) => i.id === wornTop).price, 120);
+  await page.click('button[data-act="tab"][data-tab="history"]');
+  await page.click('button[data-act="logview"][data-v="stats"]');
+  await page.waitForSelector('text=Overview');
+  await page.click('button[data-act="stats-p"][data-v="0"]');
+  await page.waitForSelector('text=Cost per wear');
+  const stxt = await page.locator('#app').innerText();
+  assert.ok(/RM 120/.test(stxt), 'price shown in cost per wear');
+  assert.ok(/Most worn/.test(stxt));
+  await shot('stats');
+  await page.click('button[data-act="logview"][data-v="log"]');
+  ok('statistics tab: overview, most worn, cost per wear with the price just entered');
+
   // flat-lay board from the user's own photos
   const flat = await page.evaluate(() => {
     const A = window.__app, S = A.state, by = (id) => S.items.find((i) => i.id === id);
@@ -366,7 +407,7 @@ const ok = (m) => console.log('ok  -', m);
 
   // horizontal overflow check on every tab
   await page.click('button[data-act="demo"]').catch(() => {});
-  for (const tab of ['today', 'wardrobe', 'history', 'gaps', 'settings']) {
+  for (const tab of ['today', 'wardrobe', 'trip', 'history', 'gaps', 'settings']) {
     await page.click(`button[data-act="tab"][data-tab="${tab}"]`);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert.ok(over <= 1, tab + ' overflows by ' + over + 'px');

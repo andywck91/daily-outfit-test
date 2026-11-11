@@ -12,7 +12,7 @@
   const ui = { newkind: null,
     tab: 'today', occasion: 'Business', wxOverride: null, aircon: true, airconTouched: false,
     weather: null, wxStatus: 'idle', result: null, worn: null, filter: 'All', sheet: null, dialog: null, zoom: null,
-    event: '', evMsg: '', festival: '', fbOpen: null, exclude: [], batch: null, selfie: null,
+    event: '', evMsg: '', logView: 'log', statsDays: 30, festival: '', fbOpen: null, exclude: [], batch: null, selfie: null,
   };
 
   const SKINS = ['#F6D9C4', '#E8BFA0', '#D2A27E', '#B98A66', '#8D5A3C', '#5C3A26'];
@@ -53,6 +53,7 @@
     out.items = Array.isArray(st.items) ? st.items : [];
     out.log = Array.isArray(st.log) ? st.log : [];
     out.counters = st.counters || {};
+    out.trip = Object.assign({ days: 5, occasions: ['Casual'], wx: ['hot_humid'], seed: 1, plan: null, checked: {} }, st.trip || {});
     out.customTypes = Array.isArray(st.customTypes) ? st.customTypes.filter((k) => k && k.id && k.cat && k.base && k.label) : [];
     out.feedback = { item: Object.assign({}, st.feedback && st.feedback.item), color: Object.assign({}, st.feedback && st.feedback.color) };
     if (st.onboarded == null) out.onboarded = out.items.length > 0 || out.log.length > 0;
@@ -83,7 +84,7 @@
     return `<header class="top"><h1>${esc(t('app.title'))}</h1><button class="btn small ghost" data-act="lang" aria-label="Language">${other}</button></header>`;
   }
   function tabbar() {
-    const tabs = [['today', 'tab.today'], ['wardrobe', 'tab.wardrobe'], ['history', 'tab.history'], ['gaps', 'tab.gaps'], ['settings', 'tab.settings']];
+    const tabs = [['today', 'tab.today'], ['wardrobe', 'tab.wardrobe'], ['trip', 'tab.trip'], ['history', 'tab.history'], ['gaps', 'tab.gaps'], ['settings', 'tab.settings']];
     return `<nav class="tabs" role="tablist">${tabs.map(([k, l]) =>
       `<button role="tab" class="tab${ui.tab === k ? ' on' : ''}" data-act="tab" data-tab="${k}" aria-selected="${ui.tab === k}">${esc(t(l))}</button>`).join('')}</nav>`;
   }
@@ -243,7 +244,38 @@
       ${rows ? `<section class="list">${rows}</section>` : `<p class="muted center">${esc(t('wardrobe.empty'))}</p>`}`;
   }
 
+  const money = (v) => (S.profile.currency || 'RM') + ' ' + (v >= 100 ? Math.round(v) : (Math.round(v * 100) / 100).toFixed(2));
+  function viewStats() {
+    const st = E.stats(S, { days: ui.statsDays });
+    const periods = [[30, 'stats.p30'], [90, 'stats.p90'], [0, 'stats.pall']];
+    let h = `<div class="chips">${periods.map(([d, l]) => chip(t(l), ui.statsDays === d, 'stats-p', { v: d })).join('')}</div>`;
+    if (!S.log.length) return h + `<section class="card"><p class="muted">${esc(t('stats.none'))}</p></section>`;
+    const pct = Math.round(st.utilisation * 100);
+    h += `<section class="card"><h2>${esc(t('stats.overview'))}</h2>
+      <p>${esc(t('stats.outfits', { n: st.outfits }))}</p>
+      <p>${esc(t('stats.util', { a: st.wornCount, b: st.clothingCount, p: pct }))}</p>
+      <div class="bar"><i style="width:${pct}%"></i></div>${st.outfits < 5 ? `<p class="muted small">${esc(t('stats.few'))}</p>` : ''}</section>`;
+    const row = (it, right) => `<div class="item" data-act="edit" data-id="${esc(it.id)}" role="button" tabindex="0">${thumb(it)}<div class="grow"><b>${esc(nm(it))}</b><div class="muted small">${esc(typeText(it))} · ${esc(it.id)}</div></div><div class="small">${right}</div></div>`;
+    if (st.most.length) h += `<section class="card"><h2>${esc(t('stats.most'))}</h2><div class="list">${st.most.map((x) => row(x.item, esc(t('stats.times', { n: x.n })))).join('')}</div></section>`;
+    if (st.unused.length) h += `<section class="card"><h2>${esc(t('stats.unused', { n: st.unused.length }))}</h2><p class="muted small">${esc(t('stats.unusedHint'))}</p><div class="list">${st.unused.slice(0, 10).map((it) => row(it, it.price ? esc(money(it.price)) : '')).join('')}</div>${st.unused.length > 10 ? `<p class="muted small">+${st.unused.length - 10}</p>` : ''}</section>`;
+    h += `<section class="card"><h2>${esc(t('stats.cpw'))}</h2>`;
+    if (!st.pricedCount) h += `<p class="muted small">${esc(t('stats.priceHint'))}</p>`;
+    else {
+      if (st.neverWorn.length) h += `<p class="note">${esc(t('stats.neverWorn', { n: st.neverWorn.length, v: money(st.neverWornValue) }))}</p>`;
+      h += `<div class="list">${st.worst.map((x) => row(x.item, `<b>${esc(money(x.cpw))}</b><br><span class="muted">${esc(t('stats.cpwLine', { p: money(x.item.price), n: x.wears }))}</span>`)).join('')}</div>`;
+    }
+    h += `</section>`;
+    const occs = Object.entries(st.occ).sort((a, b) => b[1] - a[1]), max = occs.length ? occs[0][1] : 1;
+    if (occs.length) h += `<section class="card"><h2>${esc(t('stats.byOcc'))}</h2>${occs.map(([o, n]) => `<div class="row between small"><span>${esc(occLabel(o))}</span><span>${n}</span></div><div class="bar"><i style="width:${Math.round(n / max * 100)}%"></i></div>`).join('')}</section>`;
+    return h;
+  }
+
   function viewHistory() {
+    const sw = `<div class="chips">${chip(t('log.tab'), ui.logView === 'log', 'logview', { v: 'log' })}${chip(t('stats.tab'), ui.logView === 'stats', 'logview', { v: 'stats' })}</div>`;
+    if (ui.logView === 'stats') return sw + viewStats();
+    return sw + viewLog();
+  }
+  function viewLog() {
     const rule = `<p class="muted small">${esc(t('history.rule', { n: S.settings.n }))}</p>`;
     if (!S.log.length) return `<section class="card"><h2>${esc(t('history.title'))}</h2>${rule}<p class="muted">${esc(t('history.empty'))}</p></section>`;
     const rows = S.log.slice().reverse().map((e) => {
@@ -255,6 +287,64 @@
       return `<article class="card"><div class="row between"><b>#${e.n}</b><span class="muted small">${esc(fmtDate(e.date))} · ${esc(occLabel(e.occasion))}${wx ? ' · ' + esc(wx) : ''}</span></div><div class="tags">${its}</div></article>`;
     }).join('');
     return `<section class="card"><div class="row between"><h2>${esc(t('history.title'))}</h2><button class="btn small" data-act="undo">${esc(t('history.undo'))}</button></div>${rule}</section>${rows}`;
+  }
+
+  /* ------------------------------------------------------------ trip packing list */
+  function tripPlanItems() {
+    const tp = S.trip.plan; if (!tp) return null;
+    const days = tp.days.map((d) => ({ ...d, parts: Object.fromEntries(Object.entries(d.parts).map(([c, id]) => [c, byId(id)]).filter(([, it]) => it)) }));
+    const packing = tp.packing.map((p) => ({ item: byId(p.id), days: p.days })).filter((p) => p.item);
+    return { days, packing, missing: tp.missing || [], wear: (tp.wear || []).map(byId).filter(Boolean) };
+  }
+  function tripText() {
+    const p = tripPlanItems(); if (!p) return '';
+    const lines = [t('trip.shareTitle', { d: S.trip.days }), ''];
+    E.CATEGORIES.forEach((c) => {
+      const rows = p.packing.filter((x) => x.item.cat === c); if (!rows.length) return;
+      lines.push(t('catp.' + c));
+      rows.forEach((x) => lines.push((S.trip.checked[x.item.id] ? '[x] ' : '[ ] ') + nm(x.item) + (x.days.length > 1 ? ' ×' + x.days.length : '')));
+      lines.push('');
+    });
+    if (p.wear.length) lines.push(t('trip.wear', { x: p.wear.map(nm).join(', ') }), '');
+    lines.push(t('trip.plan'));
+    p.days.forEach((d) => lines.push(t('trip.day', { d: d.day }) + ' · ' + occLabel(d.occasion) + ': ' + (Object.values(d.parts).map(nm).join(' + ') || '-')));
+    return lines.join('\n');
+  }
+  function viewTrip() {
+    if (!S.items.length) return `<section class="card center"><p>${esc(t('trip.empty'))}</p></section>`;
+    const tr = S.trip, occs = ['Casual', 'Business', 'ClientVisit', 'Beach', 'Sport', 'Date', 'Party', 'Formal', 'Travel', 'Festive'];
+    let h = `<section class="card"><h2>${esc(t('trip.title'))}</h2>
+      <label class="lbl" for="tripDays">${esc(t('trip.days'))}</label><input id="tripDays" type="number" inputmode="numeric" min="1" max="21" value="${tr.days}">
+      <label class="lbl">${esc(t('trip.occ'))}</label><div class="chips">${occs.map((o) => chip(occLabel(o), tr.occasions.includes(o), 'trip-occ', { v: o })).join('')}</div>
+      <label class="lbl">${esc(t('trip.wx'))}</label><div class="chips">${E.WX.filter((w) => w !== 'aircon').map((w) => chip(t('wx.' + w), tr.wx.includes(w), 'trip-wx', { v: w })).join('')}</div>
+      <button class="btn primary block" data-act="trip-go" style="margin-top:10px">${esc(t('trip.go'))}</button></section>`;
+    const p = tripPlanItems();
+    if (!p) return h;
+    const naive = p.days.reduce((a, d) => a + Object.keys(d.parts).length, 0), done = p.packing.filter((x) => tr.checked[x.item.id]).length;
+    h += `<section class="card"><h2>${esc(t('trip.list'))}</h2><p>${esc(t('trip.summary', { d: tr.days, n: p.packing.length, m: naive }))}</p>
+      ${p.wear.length ? `<p class="small">${esc(t('trip.wear', { x: p.wear.map(nm).join(', ') }))}</p>` : ''}
+      ${p.missing.length ? `<p class="note">${esc(t('trip.missing', { d: p.missing.join(', '), o: occLabel(p.days[p.missing[0] - 1].occasion) }))}</p>` : ''}
+      <p class="muted small" id="tripProg">${esc(t('trip.packed', { a: done, b: p.packing.length }))}</p>
+      ${E.CATEGORIES.map((c) => {
+        const rows = p.packing.filter((x) => x.item.cat === c); if (!rows.length) return '';
+        return `<h3>${esc(t('catp.' + c))}</h3><div class="list">${rows.map((x) => `<label class="item packrow"><input type="checkbox" data-act="trip-check" data-id="${esc(x.item.id)}" ${tr.checked[x.item.id] ? 'checked' : ''}>${thumb(x.item)}<div class="grow"><b>${esc(nm(x.item))}</b><div class="muted small">${esc(typeText(x.item))} · ${esc(t('trip.uses', { d: x.days.join(', ') }))}</div></div></label>`).join('')}</div>`;
+      }).join('')}
+      <div class="row wrap" style="margin-top:10px"><button class="btn" data-act="trip-share">${esc(t('trip.share'))}</button><button class="btn" data-act="trip-redo">${esc(t('trip.redo'))}</button><button class="btn ghost" data-act="trip-clear">${esc(t('trip.clear'))}</button></div></section>
+      <section class="card"><h2>${esc(t('trip.plan'))}</h2>${p.days.map((d) => `<div class="tripday"><b>${esc(t('trip.day', { d: d.day }))}</b> <span class="muted small">${esc(occLabel(d.occasion))}</span><div class="tags">${Object.values(d.parts).map((it) => `<span class="tag"><span class="dot" style="background:${esc(it.color)}"></span>${esc(nm(it))}</span>`).join('') || `<span class="muted small">${esc(t('trip.noOutfit'))}</span>`}</div></div>`).join('')}</section>`;
+    return h;
+  }
+  function tripGo(newSeed) {
+    const tr = S.trip, inp = $('tripDays');
+    if (inp) tr.days = Math.max(1, Math.min(21, parseInt(inp.value, 10) || 1));
+    if (newSeed) tr.seed++;
+    const r = E.planTrip(S, { days: tr.days, occasions: tr.occasions, wx: tr.wx }, tr.seed);
+    tr.plan = {
+      days: r.days.map((d) => ({ day: d.day, occasion: d.occasion, cond: d.cond, parts: Object.fromEntries(Object.entries(d.parts).map(([c, it]) => [c, it.id])) })),
+      packing: r.packing.map((x) => ({ id: x.item.id, days: x.days })), missing: r.missing, wear: r.wear,
+    };
+    tr.checked = {};
+    save(); render();
+    setTimeout(() => { const el = $('tripProg'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30);
   }
 
   function viewGaps() {
@@ -287,6 +377,7 @@
         <label class="lbl">${esc(t('settings.hairColor'))}</label>${sw(HAIRS, p.hairColor, 'haircolor')}
         <label class="lbl">${esc(t('settings.hairLength'))}</label>${seg([['long', t('hl.long')], ['medium', t('hl.medium')], ['short', t('hl.short')]], p.hairLength, 'hairlen')}
         <label class="check"><input type="checkbox" data-bind="makeup" ${p.makeup ? 'checked' : ''}> <span>${esc(t('settings.makeup'))}</span></label>
+        <label class="lbl" for="curIn">${esc(t('settings.currency'))}</label><input id="curIn" type="text" maxlength="4" value="${esc(S.profile.currency || 'RM')}" data-bind="currency">
         <label class="check"><input type="checkbox" data-bind="modest" ${p.modest ? 'checked' : ''}> <span>${esc(t('settings.modest'))}</span></label>
         <label class="check"><input type="checkbox" data-bind="removeBg" ${p.removeBg ? 'checked' : ''}> <span>${esc(t('settings.removeBg'))}</span></label>
         <button class="btn block" data-act="selfie" style="margin-top:8px">${esc(t('settings.selfie'))}</button><input type="file" id="fileSelfie" accept="image/*" hidden>
@@ -310,8 +401,8 @@
     const it = id ? byId(id) : null;
     ui.sheet = {
       id: it ? it.id : null, photo: it ? photos[it.id] || null : null, photoChanged: false, colorAuto: false,
-      draft: it ? { cat: it.cat, type: it.type, custom: it.custom || '', name: it.name, nameZh: it.nameZh || '', color: it.color, occasions: (it.occasions || []).slice(), weather: (it.weather || []).slice(), laundry: !!it.laundry }
-        : { cat: null, type: null, custom: '', name: '', nameZh: '', color: '#1E1E20', occasions: [], weather: [], laundry: false },
+      draft: it ? { cat: it.cat, type: it.type, custom: it.custom || '', price: it.price || 0, name: it.name, nameZh: it.nameZh || '', color: it.color, occasions: (it.occasions || []).slice(), weather: (it.weather || []).slice(), laundry: !!it.laundry }
+        : { cat: null, type: null, custom: '', price: 0, name: '', nameZh: '', color: '#1E1E20', occasions: [], weather: [], laundry: false },
       tagsTouched: !!it, fineOpen: false,
     };
     renderSheet();
@@ -319,7 +410,7 @@
   function readDraft() {
     const sh = ui.sheet; if (!sh || !$('f-name')) return;
     const d = sh.draft;
-    d.name = $('f-name').value; d.nameZh = $('f-zh').value; d.color = $('f-color').value;
+    d.name = $('f-name').value; d.nameZh = $('f-zh').value; d.color = $('f-color').value; d.price = parseFloat($('f-price').value) || 0;
     d.occasions = [...document.querySelectorAll('#f-occ .chip.on')].map((e) => e.dataset.v);
     d.weather = [...document.querySelectorAll('#f-wx .chip.on')].map((e) => e.dataset.v);
     d.laundry = $('f-laundry').checked;
@@ -341,6 +432,7 @@
       <label class="lbl" for="f-zh">${esc(t('sheet.nameZh'))}</label><input id="f-zh" type="text" value="${esc(d.nameZh)}" maxlength="40" autocomplete="off">
       <label class="lbl" for="f-color">${esc(t('sheet.color'))}</label>
       <div class="row wrap"><input id="f-color" type="color" value="${esc(d.color)}">${QUICK.map((c) => `<button type="button" class="swb sm" style="background:${c}" data-act="quickcolor" data-v="${c}" aria-label="${c}"></button>`).join('')}</div>
+      <label class="lbl" for="f-price">${esc(t('sheet.price', { c: S.profile.currency || 'RM' }))}</label><input id="f-price" type="number" inputmode="decimal" min="0" step="0.01" value="${d.price ? esc(d.price) : ''}">
       <details id="f-fine" ${sh.fineOpen ? 'open' : ''}><summary>${esc(t('sheet.fine'))}</summary>
       <p class="muted small">${esc(t('sheet.auto'))}</p>
       <label class="lbl">${esc(t('sheet.occasions'))}</label><div class="chips" id="f-occ">${E.OCCASIONS.map((o) => chip(occLabel(o), d.occasions.includes(o), 'togglechip', { v: o })).join('')}</div>
@@ -365,6 +457,7 @@
     else { it = { id: E.nextId(S, d.cat), addedAt: Date.now() }; S.items.push(it); }
     if (sh.id && it.cat !== d.cat) { /* category changed: keep id stable */ }
     if (d.custom) it.custom = d.custom; else delete it.custom;
+    if (d.price > 0) it.price = d.price; else delete it.price;
     Object.assign(it, { cat: d.cat, type: d.type, name: d.name.trim() || d.nameZh.trim(), nameZh: d.nameZh.trim(), color: d.color, occasions: d.occasions, weather: d.weather, laundry: d.laundry });
     if (sh.photoChanged && sh.photo) { photos[it.id] = sh.photo; OF.store.putPhoto(it.id, sh.photo); }
     save(); ui.sheet = null; resetResults(); renderSheet(); render(); toast(t('toast.saved'));
@@ -722,6 +815,15 @@
     if (act === 'zoom-close' && e.target !== el && !e.target.closest('button.btn')) return;
     const D = el.dataset;
     switch (act) {
+      case 'logview': ui.logView = D.v; render(); break;
+      case 'stats-p': ui.statsDays = +D.v; render(); break;
+      case 'trip-occ': { const a = S.trip.occasions, i = a.indexOf(D.v); if (i >= 0) { if (a.length > 1) a.splice(i, 1); } else a.push(D.v); save(); render(); break; }
+      case 'trip-wx': { const a = S.trip.wx, i = a.indexOf(D.v); if (i >= 0) { if (a.length > 1) a.splice(i, 1); } else a.push(D.v); save(); render(); break; }
+      case 'trip-go': tripGo(false); break;
+      case 'trip-redo': tripGo(true); break;
+      case 'trip-check': { S.trip.checked[D.id] = el.checked; save(); const p = tripPlanItems(), pr = $('tripProg'); if (p && pr) pr.textContent = t('trip.packed', { a: p.packing.filter((x) => S.trip.checked[x.item.id]).length, b: p.packing.length }); return; }
+      case 'trip-clear': S.trip.checked = {}; save(); render(); break;
+      case 'trip-share': shareFile('packing-list-' + stamp() + '.txt', 'text/plain', tripText()); break;
       case 'newkind': ui.newkind = { cat: D.c, base: E.TYPES[D.c][0], name: '' }; renderDialog(); break;
       case 'nk-cat': ui.newkind.name = $('nk-name').value; ui.newkind.cat = D.c; ui.newkind.base = E.TYPES[D.c][0]; renderDialog(); break;
       case 'nk-base': ui.newkind.name = $('nk-name').value; ui.newkind.base = D.v; renderDialog(); break;
@@ -838,6 +940,7 @@
     const k = b.dataset.bind;
     if (k === 'sheet-cat') { readDraft(); ui.sheet.draft.type = E.TYPES[ui.sheet.draft.cat][0]; renderSheet(); return; }
     if (k === 'aircon') { ui.aircon = b.checked; ui.airconTouched = true; resetResults(); render(); return; }
+    if (k === 'currency') { S.profile.currency = (b.value || '').trim().slice(0, 4) || 'RM'; save(); return; }
     if (k === 'modest') { S.profile.modest = b.checked; save(); resetResults(); render(); return; }
     if (k === 'removeBg') { S.profile.removeBg = b.checked; save(); render(); return; }
     if (k === 'makeup') { S.profile.makeup = b.checked; save(); resetResults(); render(); return; }
@@ -846,6 +949,7 @@
     if (k.startsWith('rule:')) { S.settings.rule[k.slice(5)] = b.checked; save(); resetResults(); render(); }
   });
   document.addEventListener('input', (e) => { if (e.target.id === 'evIn') ui.event = e.target.value; });
+  document.addEventListener('input', (e) => { if (e.target.id === 'tripDays') { const v = parseInt(e.target.value, 10); if (v >= 1) S.trip.days = Math.min(21, v); } });
   document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'evIn') { e.preventDefault(); document.querySelector('[data-act="event-go"]').click(); } });
   document.addEventListener('click', (e) => { if (e.target.id === 'selfieCv' && ui.selfie) selfieTap(e); });
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (ui.tab === 'settings') render(); });
@@ -854,7 +958,7 @@
   function render() {
     document.documentElement.lang = OF.getLang() === 'zh' ? 'zh-CN' : 'en';
     document.title = t('app.title');
-    const views = { today: viewToday, wardrobe: viewWardrobe, history: viewHistory, gaps: viewGaps, settings: viewSettings };
+    const views = { today: viewToday, wardrobe: viewWardrobe, trip: viewTrip, history: viewHistory, gaps: viewGaps, settings: viewSettings };
     $('app').innerHTML = header() + '<main>' + views[ui.tab]() + '</main>' + tabbar();
   }
 

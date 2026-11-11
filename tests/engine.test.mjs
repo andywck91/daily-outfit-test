@@ -326,4 +326,46 @@ test('accessories (hat, belt, eyewear, scarf, watch) join a look only when they 
   assert.deepEqual(Object.keys(E.gapMatrix(s)), E.CORE_CATS);
 });
 
+test('trip planner: one outfit per day, re-using bottoms/shoes/bags, tops not repeated on a short trip', () => {
+  const s = freshState();
+  const trip = { days: 7, occasions: ['Casual', 'Business', 'Beach'], wx: ['hot_humid', 'rainy'] };
+  const r = E.planTrip(s, trip, 3);
+  assert.equal(r.days.length, 7); assert.deepEqual(r.missing.filter((d) => r.days[d - 1].occasion !== 'Beach'), []);
+  const wornDays = r.days.filter((d) => Object.keys(d.parts).length);
+  assert.ok(wornDays.length >= 6, 'most days planned');
+  const naive = wornDays.reduce((a, d) => a + Object.keys(d.parts).length, 0);
+  assert.ok(r.packing.length < naive * 0.75, 'packed ' + r.packing.length + ' of ' + naive + ' uses');
+  r.packing.filter((p) => p.item.cat === 'Top').forEach((p) => assert.equal(p.days.length, 1, 'top worn once on a 7-day trip'));
+  r.packing.filter((p) => p.item.cat === 'Bottom').forEach((p) => assert.ok(p.days.length <= 3));
+  assert.ok(r.packing.some((p) => p.days.length > 1), 'something is re-worn');
+  const same = E.planTrip(s, trip, 3); assert.deepEqual(same.packing.map((p) => p.item.id), r.packing.map((p) => p.item.id), 'deterministic for a seed');
+  // recently worn clothes are still packable (the no-repeat rule is about daily wear, not a future trip)
+  const s2 = freshState(); const first = E.generate(s2, 'Casual', ['hot_humid'], { rng: E.mulberry32(2) }).looks[0];
+  s2.log.push({ n: 1, date: '2026-11-01', occasion: 'Casual', cond: [], items: Object.fromEntries(Object.entries(first.parts).filter(([, v]) => v).map(([k, v]) => [k, v.id])) });
+  assert.equal(E.planTrip(s2, { days: 2, occasions: ['Casual'], wx: ['hot_humid'] }, 1).days.length, 2);
+  // a wardrobe with no clothes reports the missing days instead of crashing
+  const none = E.planTrip(E.defaultState(), { days: 3, occasions: ['Casual'], wx: ['cool'] }, 1);
+  assert.deepEqual(none.missing, [1, 2, 3]);
+});
+
+test('wear statistics: counts, utilisation, unused, cost per wear', () => {
+  const s = E.defaultState();
+  const mk = (cat, type, price, added) => { const it = { id: E.nextId(s, cat), cat, type, name: cat + type, nameZh: '', color: '#333333', occasions: [], weather: [], laundry: false, addedAt: added, ...(price ? { price } : {}) }; s.items.push(it); return it; };
+  const t1 = mk('Top', 'shirt', 100, 1), t2 = mk('Top', 'tee', 50, 2), b1 = mk('Bottom', 'jeans', 200, 3), d1 = mk('Dress', 'midi', 300, 4), sh = mk('Shoes', 'flats', 80, 5);
+  const day = (n) => '2026-11-' + String(n).padStart(2, '0');
+  s.log.push({ n: 1, date: '2026-08-01', occasion: 'Casual', items: { Top: t2.id, Bottom: b1.id } });          // old
+  s.log.push({ n: 2, date: day(1), occasion: 'Business', items: { Top: t1.id, Bottom: b1.id, Shoes: sh.id } });
+  s.log.push({ n: 3, date: day(5), occasion: 'Business', items: { Top: t1.id, Bottom: b1.id, Shoes: sh.id } });
+  const st = E.stats(s, { days: 30, today: '2026-11-11' });
+  assert.equal(st.outfits, 2); assert.equal(st.wornCount, 2); assert.equal(st.clothingCount, 4);
+  assert.equal(st.utilisation, 0.5);
+  assert.deepEqual(st.occ, { Business: 2 });
+  assert.equal(st.most[0].n, 2);
+  assert.deepEqual(st.unused.map((i) => i.id), [t2.id, d1.id], 'tee (only worn long ago) and dress are idle in 30 days');
+  const all = E.stats(s, { days: 0, today: '2026-11-11' });
+  assert.equal(all.outfits, 3); assert.deepEqual(all.unused.map((i) => i.id), [d1.id]);
+  const jeans = all.worst.find((x) => x.item.id === b1.id); assert.equal(jeans.wears, 3); assert.ok(Math.abs(jeans.cpw - 200 / 3) < 1e-9);
+  assert.deepEqual(all.neverWorn.map((x) => x.item.id), [d1.id]); assert.equal(all.neverWornValue, 300);
+});
+
 console.log(`\n${passed} tests passed`);
