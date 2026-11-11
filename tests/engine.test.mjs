@@ -211,6 +211,34 @@ test('shopping ideas skip nonsense combinations (no dress for Sport, no blazer f
   assert.equal(E.relevant('Shoes', 'Sport'), true);
 });
 
+test('automatic tags: the user only says what the item is', () => {
+  const a = (c, t, col) => E.autoTags(c, t, col);
+  assert.ok(a('Top', 'shirt', '#F7F5F0').occasions.includes('Business'));
+  assert.ok(!a('Bottom', 'shorts', '#6F94C2').occasions.includes('Business'));
+  assert.ok(a('Shoes', 'sneakers', '#F4F4F2').occasions.includes('Sport'));
+  assert.ok(!a('Shoes', 'sneakers', '#F4F4F2').occasions.includes('Formal'));
+  assert.ok(a('Dress', 'midi', '#1E1E20').occasions.includes('Formal'), 'little black dress');
+  const red = a('Dress', 'midi', '#B9362C').occasions;
+  assert.ok(!red.includes('Formal') && red.includes('Festive'), 'bright red dress is festive, not formal: ' + red);
+  assert.deepEqual(a('Outerwear', 'blazer', '#D9C7AB').weather, ['aircon', 'cool']);
+  assert.deepEqual(a('Top', 'shirt', '#fff').weather, []);
+  assert.equal(E.colorKey('#C0392B'), 'red'); assert.equal(E.colorKey('#1F2E4D'), 'navy'); assert.equal(E.colorKey('#EFE3CF'), 'white');
+  // every type of every category has tags
+  for (const c of E.CATEGORIES) for (const t of E.TYPES[c]) assert.ok(a(c, t, '#888888').occasions.length > 0, c + '/' + t);
+  // an auto-tagged wardrobe still produces outfits for every occasion
+  const s = E.defaultState();
+  const kinds = [['Top', 'shirt'], ['Top', 'tee'], ['Top', 'knit'], ['Bottom', 'trousers'], ['Bottom', 'jeans'], ['Bottom', 'skirt'], ['Bottom', 'shorts'], ['Shoes', 'flats'], ['Shoes', 'sneakers'], ['Shoes', 'sandals'], ['Shoes', 'heels'], ['Bag', 'tote']];
+  kinds.forEach(([c, t], i) => { const col = ['#F7F5F0', '#1E1E20', '#CDB89A', '#1F2E4D'][i % 4]; const g = E.autoTags(c, t, col); s.items.push({ id: E.nextId(s, c), cat: c, type: t, name: t, color: col, occasions: g.occasions, weather: g.weather }); });
+  for (const occ of ['Business', 'Casual', 'Sport', 'Beach', 'Date']) assert.ok(E.generate(s, occ, ['hot_humid'], { rng: E.mulberry32(4) }).looks.length >= 1, occ);
+});
+
+test('CSV rows without occasions get automatic ones', () => {
+  const r = E.importCSV(E.defaultState(), 'Category,Name (EN),Color\nTop,White linen shirt,White\nShoes,Black heels,Black\n');
+  assert.equal(r.items.length, 2);
+  assert.ok(r.items[0].occasions.includes('Business'));
+  assert.ok(r.items[1].occasions.includes('Formal'));
+});
+
 test('item ids are unique and prefixed by category', () => {
   const s = freshState();
   const ids = s.items.map((i) => i.id);

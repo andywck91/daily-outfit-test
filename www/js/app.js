@@ -234,48 +234,55 @@
     ui.sheet = {
       id: it ? it.id : null, photo: it ? photos[it.id] || null : null, photoChanged: false, colorAuto: false,
       draft: it ? { cat: it.cat, type: it.type, name: it.name, nameZh: it.nameZh || '', color: it.color, occasions: (it.occasions || []).slice(), weather: (it.weather || []).slice(), laundry: !!it.laundry }
-        : { cat: ui.filter !== 'All' ? ui.filter : 'Top', type: null, name: '', nameZh: '', color: '#1E1E20', occasions: [], weather: [], laundry: false },
+        : { cat: null, type: null, name: '', nameZh: '', color: '#1E1E20', occasions: [], weather: [], laundry: false },
+      tagsTouched: !!it, fineOpen: false,
     };
-    if (!ui.sheet.draft.type) ui.sheet.draft.type = E.TYPES[ui.sheet.draft.cat][0];
     renderSheet();
   }
   function readDraft() {
     const sh = ui.sheet; if (!sh || !$('f-name')) return;
     const d = sh.draft;
-    d.cat = $('f-cat').value; d.type = $('f-type').value; d.name = $('f-name').value; d.nameZh = $('f-zh').value; d.color = $('f-color').value;
+    d.name = $('f-name').value; d.nameZh = $('f-zh').value; d.color = $('f-color').value;
     d.occasions = [...document.querySelectorAll('#f-occ .chip.on')].map((e) => e.dataset.v);
     d.weather = [...document.querySelectorAll('#f-wx .chip.on')].map((e) => e.dataset.v);
     d.laundry = $('f-laundry').checked;
+    sh.fineOpen = $('f-fine').open;
   }
   function renderSheet() {
     const root = $('sheet-root');
     if (!ui.sheet) { root.innerHTML = ''; return; }
     const sh = ui.sheet, d = sh.draft;
-    const types = E.TYPES[d.cat];
     const prev = sh.photo ? `<img class="photo-prev" src="${sh.photo}" alt="">` : `<div class="photo-prev sw" style="background:${esc(d.color)}"></div>`;
     root.innerHTML = `<div class="overlay" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(t(sh.id ? 'sheet.edit' : 'sheet.add'))}">
       <div class="row between"><h2>${esc(t(sh.id ? 'sheet.edit' : 'sheet.add'))}</h2><button class="btn small ghost" data-act="sheet-close" aria-label="${esc(t('common.close'))}">✕</button></div>
       <div class="row"><div>${prev}</div><div class="stack grow"><button class="btn small" data-act="pick-cam">${esc(t('sheet.camera'))}</button><button class="btn small" data-act="pick-gal">${esc(t('sheet.gallery'))}</button></div></div>
       <input type="file" id="fileCam" accept="image/*" capture="environment" hidden><input type="file" id="fileGal" accept="image/*" hidden>
       ${sh.colorAuto ? `<p class="muted small">${esc(t('sheet.colorAuto'))}</p>` : ''}
-      <label class="lbl" for="f-cat">${esc(t('sheet.category'))}</label>
-      <select id="f-cat" data-bind="sheet-cat">${E.CATEGORIES.map((c) => `<option value="${c}"${c === d.cat ? ' selected' : ''}>${esc(t('cat.' + c))}</option>`).join('')}</select>
-      <label class="lbl" for="f-type">${esc(t('sheet.type'))}</label>
-      <select id="f-type">${types.map((x) => `<option value="${x}"${x === d.type ? ' selected' : ''}>${esc(t('type.' + x))}</option>`).join('')}</select>
-      <label class="lbl" for="f-name">${esc(t('sheet.name'))}</label><input id="f-name" type="text" value="${esc(d.name)}" maxlength="60" autocomplete="off">
+      <label class="lbl">${esc(t('sheet.kind'))}</label>
+      ${E.CATEGORIES.map((c) => `<div class="kgroup"><span class="klabel">${esc(t('cat.' + c))}</span><div class="chips">${E.TYPES[c].map((x) => chip(t('type.' + x), d.cat === c && d.type === x, 'kind', { c, v: x })).join('')}</div></div>`).join('')}
+      <label class="lbl" for="f-name">${esc(t('sheet.nameHint'))}</label><input id="f-name" type="text" value="${esc(d.name)}" maxlength="60" autocomplete="off">
       <label class="lbl" for="f-zh">${esc(t('sheet.nameZh'))}</label><input id="f-zh" type="text" value="${esc(d.nameZh)}" maxlength="40" autocomplete="off">
       <label class="lbl" for="f-color">${esc(t('sheet.color'))}</label>
       <div class="row wrap"><input id="f-color" type="color" value="${esc(d.color)}">${QUICK.map((c) => `<button type="button" class="swb sm" style="background:${c}" data-act="quickcolor" data-v="${c}" aria-label="${c}"></button>`).join('')}</div>
+      <details id="f-fine" ${sh.fineOpen ? 'open' : ''}><summary>${esc(t('sheet.fine'))}</summary>
+      <p class="muted small">${esc(t('sheet.auto'))}</p>
       <label class="lbl">${esc(t('sheet.occasions'))}</label><div class="chips" id="f-occ">${E.OCCASIONS.map((o) => chip(occLabel(o), d.occasions.includes(o), 'togglechip', { v: o })).join('')}</div>
-      <label class="lbl">${esc(t('sheet.weather'))}</label><div class="chips" id="f-wx">${E.WX.map((w) => chip(t('wx.' + w), d.weather.includes(w), 'togglechip', { v: w })).join('')}</div>
+      <label class="lbl">${esc(t('sheet.weather'))}</label><div class="chips" id="f-wx">${E.WX.map((w) => chip(t('wx.' + w), d.weather.includes(w), 'togglechip', { v: w })).join('')}</div></details>
       <label class="check"><input type="checkbox" id="f-laundry" ${d.laundry ? 'checked' : ''}> <span>${esc(t('sheet.laundry'))}</span></label>
       <div class="row end"><button class="btn" data-act="sheet-close">${esc(t('common.cancel'))}</button>${sh.id ? `<button class="btn danger" data-act="sheet-delete">${esc(t('common.delete'))}</button>` : ''}<button class="btn primary" data-act="sheet-save">${esc(t('common.save'))}</button></div>
     </div></div>`;
   }
+  /** "Black shirt" / "黑色衬衫" from the colour and the kind of item */
+  function autoName(lang, d) {
+    const col = OF.tIn(lang, 'color.' + E.colorKey(d.color)), ty = OF.tIn(lang, 'type.' + d.type);
+    return lang === 'zh' ? col + ty : col.charAt(0).toUpperCase() + col.slice(1) + ' ' + ty.toLowerCase();
+  }
   function saveSheet() {
     readDraft();
     const sh = ui.sheet, d = sh.draft;
-    if (!d.name.trim() && !d.nameZh.trim()) { toast(t('sheet.needName')); $('f-name').focus(); return; }
+    if (!d.type) { toast(t('sheet.needKind')); return; }
+    if (!sh.tagsTouched) { const a = E.autoTags(d.cat, d.type, d.color); d.occasions = a.occasions; d.weather = a.weather; }
+    if (!d.name.trim() && !d.nameZh.trim()) { d.name = autoName('en', d); d.nameZh = autoName('zh', d); }
     let it;
     if (sh.id) it = byId(sh.id);
     else { it = { id: E.nextId(S, d.cat), addedAt: Date.now() }; S.items.push(it); }
@@ -442,7 +449,12 @@
         const id = ui.sheet.id; S.items = S.items.filter((i) => i.id !== id); delete photos[id]; OF.store.delPhoto(id);
         save(); ui.sheet = null; renderSheet(); resetResults(); render(); toast(t('toast.deleted'));
       }); break;
-      case 'togglechip': el.classList.toggle('on'); el.setAttribute('aria-pressed', el.classList.contains('on')); break;
+      case 'kind': {
+        readDraft(); const d = ui.sheet.draft; d.cat = D.c; d.type = D.v;
+        if (!ui.sheet.tagsTouched) { const a = E.autoTags(d.cat, d.type, d.color); d.occasions = a.occasions; d.weather = a.weather; }
+        renderSheet(); break;
+      }
+      case 'togglechip': if (ui.sheet) ui.sheet.tagsTouched = true; el.classList.toggle('on'); el.setAttribute('aria-pressed', el.classList.contains('on')); break;
       case 'quickcolor': $('f-color').value = D.v; ui.sheet.colorAuto = false; { const pv = document.querySelector('.photo-prev.sw'); if (pv) pv.style.background = D.v; } break;
       case 'figure': S.profile.figure = D.v; if (D.v === 'masculine') S.profile.hairLength = 'short'; save(); resetResults(); render(); break;
       case 'skin': S.profile.skin = D.v; save(); resetResults(); render(); break;

@@ -85,3 +85,6 @@ table.gap td { text-align: center; padding: 8px 4px; border-radius: 8px; font-we
 #toast.show { opacity: 1; transform: translateX(-50%); }
 @media (min-width: 560px) { .overlay { align-items: center; } .sheet { border-radius: 18px; } }
 @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+
+.kgroup { margin: 6px 0; } .klabel { font-size: 12px; color: var(--muted); }
+details#f-fine { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; } details#f-fine summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 40px; display: flex; align-items: center; }

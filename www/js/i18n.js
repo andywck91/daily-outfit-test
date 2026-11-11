@@ -13,13 +13,13 @@
       'occ.Business': 'Business', 'occ.Casual': 'Casual', 'occ.Beach': 'Beach', 'occ.Sport': 'Sport', 'occ.Summer': 'Summer', 'occ.Date': 'Date', 'occ.Party': 'Party',
       'occ.Formal': 'Formal', 'occ.Travel': 'Travel', 'occ.ClientVisit': 'Client visit', 'occ.Festive': 'Festive (Raya / CNY / Deepavali)',
       'occs.Festive': 'Festive',
-      'type.shirt': 'Shirt / blouse', 'type.tee': 'T-shirt', 'type.tank': 'Tank / camisole', 'type.knit': 'Knit top',
+      'type.shirt': 'Shirt', 'type.tee': 'T-shirt', 'type.tank': 'Tank top', 'type.knit': 'Knit top',
       'type.trousers': 'Trousers', 'type.jeans': 'Jeans', 'type.skirt': 'Skirt', 'type.shorts': 'Shorts',
-      'type.midi': 'Midi / long dress', 'type.mini': 'Mini dress', 'type.blazer': 'Blazer', 'type.cardigan': 'Cardigan', 'type.jacket': 'Jacket',
+      'type.midi': 'Midi dress', 'type.mini': 'Mini dress', 'type.blazer': 'Blazer', 'type.cardigan': 'Cardigan', 'type.jacket': 'Jacket',
       'type.heels': 'Heels', 'type.flats': 'Flats', 'type.sneakers': 'Sneakers', 'type.sandals': 'Sandals',
-      'type.tote': 'Tote / handbag', 'type.shoulder': 'Shoulder bag', 'type.backpack': 'Backpack', 'type.set': 'Earrings + necklace',
+      'type.tote': 'Tote bag', 'type.shoulder': 'Shoulder bag', 'type.backpack': 'Backpack', 'type.set': 'Jewelry set',
       'wx.hot_humid': 'Hot & humid', 'wx.hot_sunny': 'Hot & sunny', 'wx.rainy': 'Rainy', 'wx.aircon': 'Air-con', 'wx.cool': 'Cool',
-      'color.black': 'black', 'color.white': 'white', 'color.beige': 'beige', 'color.navy': 'navy', 'color.grey': 'grey',
+      'color.black': 'black', 'color.white': 'white', 'color.beige': 'beige', 'color.navy': 'navy', 'color.grey': 'grey', 'color.brown': 'brown', 'color.blue': 'blue', 'color.lightblue': 'light blue', 'color.green': 'green', 'color.red': 'red', 'color.pink': 'pink', 'color.purple': 'purple', 'color.yellow': 'yellow', 'color.orange': 'orange', 'color.gold': 'gold', 'color.silver': 'silver',
 
       'today.occasion': 'What is the occasion?',
       'wx.title': 'Weather',
@@ -56,7 +56,7 @@
       'sheet.colorAuto': 'Colour picked from your photo. Adjust it if it looks off.',
       'sheet.occasions': 'Good for (leave empty = any occasion)', 'sheet.weather': 'Suits this weather (leave empty = any)',
       'sheet.laundry': 'In laundry / unavailable',
-      'sheet.needName': 'Please give the item a name.',
+      'sheet.needName': 'Please give the item a name.', 'sheet.kind': 'What is it? (tap one)', 'sheet.fine': 'Where to wear it (chosen for you, change if you like)', 'sheet.needKind': 'Tap what kind of item it is.', 'sheet.nameHint': 'Name (optional, filled in for you)', 'sheet.auto': 'The occasions and weather are chosen from the type and colour.',
       'history.title': 'Outfit log', 'history.empty': 'Nothing logged yet. Pick "Wear this" on the Today tab.', 'history.undo': 'Undo last outfit',
       'history.rule': 'Rule: no repeats within the last {n} outfits.',
       'gaps.title': 'Gap check', 'gaps.hint': 'Items you own per category and occasion. Red = below your minimum of {n}.',
@@ -100,13 +100,13 @@
       'occ.Business': '商务', 'occ.Casual': '休闲', 'occ.Beach': '海边', 'occ.Sport': '运动', 'occ.Summer': '夏天', 'occ.Date': '约会', 'occ.Party': '聚会',
       'occ.Formal': '正式', 'occ.Travel': '旅行', 'occ.ClientVisit': '拜访客户', 'occ.Festive': '节庆（哈芝节/春节/屠妖节）',
       'occs.Festive': '节庆',
-      'type.shirt': '衬衫', 'type.tee': 'T恤', 'type.tank': '背心/吊带', 'type.knit': '针织上衣',
+      'type.shirt': '衬衫', 'type.tee': 'T恤', 'type.tank': '背心', 'type.knit': '针织上衣',
       'type.trousers': '长裤', 'type.jeans': '牛仔裤', 'type.skirt': '半身裙', 'type.shorts': '短裤',
-      'type.midi': '中长/长裙', 'type.mini': '短裙', 'type.blazer': '西装外套', 'type.cardigan': '开衫', 'type.jacket': '夹克',
+      'type.midi': '中长裙', 'type.mini': '短裙', 'type.blazer': '西装外套', 'type.cardigan': '开衫', 'type.jacket': '夹克',
       'type.heels': '高跟鞋', 'type.flats': '平底鞋', 'type.sneakers': '运动鞋', 'type.sandals': '凉鞋',
-      'type.tote': '托特/手提包', 'type.shoulder': '单肩包', 'type.backpack': '双肩包', 'type.set': '耳环+项链',
+      'type.tote': '托特包', 'type.shoulder': '单肩包', 'type.backpack': '双肩包', 'type.set': '首饰套装',
       'wx.hot_humid': '湿热', 'wx.hot_sunny': '晴热', 'wx.rainy': '下雨', 'wx.aircon': '冷气房', 'wx.cool': '凉爽',
-      'color.black': '黑色', 'color.white': '白色', 'color.beige': '米色', 'color.navy': '藏青色', 'color.grey': '灰色',
+      'color.black': '黑色', 'color.white': '白色', 'color.beige': '米色', 'color.navy': '藏青色', 'color.grey': '灰色', 'color.brown': '棕色', 'color.blue': '蓝色', 'color.lightblue': '浅蓝色', 'color.green': '绿色', 'color.red': '红色', 'color.pink': '粉色', 'color.purple': '紫色', 'color.yellow': '黄色', 'color.orange': '橙色', 'color.gold': '金色', 'color.silver': '银色',
 
       'today.occasion': '今天是什么场合？',
       'wx.title': '天气',
@@ -143,7 +143,7 @@
       'sheet.colorAuto': '颜色取自照片，不准可以手动调整。',
       'sheet.occasions': '适合场合（不选 = 任何场合）', 'sheet.weather': '适合天气（不选 = 任何天气）',
       'sheet.laundry': '洗衣中 / 暂不可穿',
-      'sheet.needName': '请给这件单品起个名字。',
+      'sheet.needName': '请给这件单品起个名字。', 'sheet.kind': '这是什么？（点一个）', 'sheet.fine': '适合在哪里穿（已自动选好，可修改）', 'sheet.needKind': '请点选这件是什么类型。', 'sheet.nameHint': '名称（可不填，会自动命名）', 'sheet.auto': '适合的场合和天气会根据款式和颜色自动选择。',
       'history.title': '穿搭记录', 'history.empty': '还没有记录。在“今日”里选择“就穿这套”。', 'history.undo': '撤销上一套',
       'history.rule': '规则：最近 {n} 套内不重复。',
       'gaps.title': '缺口检查', 'gaps.hint': '每个类别、每个场合你拥有的单品数。红色 = 低于你设定的最少 {n} 件。',
@@ -181,6 +181,7 @@
   let lang = 'en';
   OF.setLang = (l) => { lang = l === 'zh' ? 'zh' : 'en'; };
   OF.getLang = () => lang;
+  OF.tIn = function (l, key) { return (S[l] && S[l][key]) || S.en[key] || key; };
   OF.t = function (key, vars) {
     let s = (S[lang] && S[lang][key]) || S.en[key] || key;
     if (vars) for (const k in vars) s = s.split('{' + k + '}').join(vars[k]);

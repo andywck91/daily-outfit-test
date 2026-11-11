@@ -108,17 +108,20 @@ const ok = (m) => console.log('ok  -', m);
   await page.waitForSelector('text=Colour picked from your photo');
   const col = await page.inputValue('#f-color');
   assert.ok(/^#c0/i.test(col), 'detected colour ' + col);
-  await page.selectOption('#f-cat', 'Dress');
-  await page.fill('#f-name', 'Red test dress');
-  await page.click('#f-occ .chip >> nth=7');
+  await page.click('button[data-act="sheet-save"]');
+  await page.waitForSelector('text=Tap what kind of item it is');
+  assert.ok(await page.locator('.sheet').count(), 'sheet stays open until a kind is chosen');
+  await page.click('button[data-act="kind"][data-v="midi"]');
   await shot('add-sheet');
   await page.click('button[data-act="sheet-save"]');
-  await page.waitForSelector('text=Red test dress');
+  await page.waitForSelector('text=Red midi dress');
   s = await st();
-  const added = s.items.find((i) => i.name === 'Red test dress');
-  assert.ok(added && added.cat === 'Dress' && /^D\d{3}$/.test(added.id) && added.occasions.includes('Formal'));
+  const added = s.items.find((i) => i.name === 'Red midi dress');
+  assert.ok(added && added.cat === 'Dress' && /^D\d{3}$/.test(added.id), 'auto-named');
+  assert.equal(added.nameZh, '红色中长裙');
+  assert.ok(added.occasions.includes('Date') && added.occasions.includes('Festive') && !added.occasions.includes('Formal'), 'auto occasions for a bright dress: ' + added.occasions);
   assert.equal(await page.locator('img.thumb').count(), 1);
-  ok('added item from a photo: colour ' + col + ', id ' + added.id);
+  ok('added item with 3 taps (photo, kind, save): ' + added.name + ', colour ' + col + ', occasions chosen automatically: ' + added.occasions.join('/'));
 
   // CSV import (Excel template sheet saved as CSV)
   await page.setInputFiles('#fileCsv', CSV);

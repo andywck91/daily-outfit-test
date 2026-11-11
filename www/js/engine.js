@@ -387,6 +387,53 @@
     return out.sort((a, b) => b.score - a.score).slice(0, limit || 5);
   }
 
+
+  /* ---------------------------------------------------------------- automatic tags */
+  const AUTO_OCC = {
+    shirt: ['Business', 'ClientVisit', 'Casual', 'Date', 'Travel'], tee: ['Casual', 'Travel', 'Summer', 'Beach', 'Sport'],
+    tank: ['Casual', 'Summer', 'Beach', 'Sport', 'Party'], knit: ['Casual', 'Date', 'Business', 'Travel'],
+    trousers: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Travel'], jeans: ['Casual', 'Travel', 'Date'],
+    skirt: ['Business', 'ClientVisit', 'Formal', 'Date', 'Party', 'Festive', 'Casual'], shorts: ['Casual', 'Beach', 'Summer', 'Travel', 'Sport'],
+    midi: ['Date', 'Party', 'Formal', 'Festive', 'Business', 'ClientVisit', 'Casual'], mini: ['Date', 'Party', 'Casual', 'Summer', 'Beach'],
+    blazer: ['Business', 'ClientVisit', 'Formal', 'Party', 'Date'], cardigan: ['Casual', 'Business', 'Travel', 'Date'], jacket: ['Casual', 'Travel'],
+    heels: ['Business', 'ClientVisit', 'Formal', 'Date', 'Party', 'Festive'], flats: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Travel'],
+    sneakers: ['Casual', 'Sport', 'Travel'], sandals: ['Casual', 'Beach', 'Summer', 'Travel', 'Festive'],
+    tote: ['Business', 'ClientVisit', 'Casual', 'Travel'], shoulder: ['Business', 'Formal', 'Date', 'Party', 'Casual', 'Festive'],
+    backpack: ['Sport', 'Travel', 'Casual'], set: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Party', 'Festive'],
+  };
+  const AUTO_WX = {
+    tank: ['hot_humid', 'hot_sunny'], shorts: ['hot_humid', 'hot_sunny'], mini: ['hot_humid', 'hot_sunny'], sandals: ['hot_humid', 'hot_sunny'],
+    knit: ['aircon', 'cool'], blazer: ['aircon', 'cool'], cardigan: ['aircon', 'cool'], jacket: ['aircon', 'cool'],
+  };
+  /** Suggested occasions + weather for an item from its type and colour, so users only have to say what it is. */
+  function autoTags(cat, type, color) {
+    let occ = (AUTO_OCC[type] || []).slice();
+    const c = color || '#999999';
+    const { s, l } = hexToHsl(c);
+    const clothing = ['Top', 'Bottom', 'Dress'].includes(cat);
+    if (clothing && !isNeutral(c) && s > 0.5 && l > 0.35) {            // bright colour: festive and fun, not formal
+      occ = occ.filter((o) => o !== 'Formal' && o !== 'ClientVisit');
+      ['Festive', 'Party'].forEach((o) => { if ((cat !== 'Bottom' || type === 'skirt') && !occ.includes(o)) occ.push(o); });
+    }
+    if ((cat === 'Dress' || type === 'skirt') && l < 0.2 && !occ.includes('Formal')) occ.push('Formal');   // little black dress / skirt
+    return { occasions: occ.filter((o) => OCCASIONS.includes(o)), weather: (AUTO_WX[type] || []).slice() };
+  }
+  const BASIC = {
+    black: '#1E1E20', white: '#F7F5F0', grey: '#9AA0A6', beige: '#CDB89A', brown: '#7B5B3F', navy: '#1F2E4D', blue: '#3B6FB6', lightblue: '#A9C7E8',
+    green: '#3E7B5A', red: '#C0392B', pink: '#E8A0B4', purple: '#7C5CA8', yellow: '#E9C46A', orange: '#E07B39', gold: '#D4AF37', silver: '#C0C0C0',
+  };
+  /** nearest everyday colour name (key of color.* in the translations) */
+  function colorKey(hex) {
+    const [r, g, b] = hexToRgb(hex);
+    let best = 'grey', bd = Infinity;
+    for (const k in BASIC) {
+      const [r2, g2, b2] = hexToRgb(BASIC[k]);
+      const d = 2 * (r - r2) ** 2 + 4 * (g - g2) ** 2 + 3 * (b - b2) ** 2;
+      if (d < bd) { bd = d; best = k; }
+    }
+    return best;
+  }
+
   /* ---------------------------------------------------------------- CSV */
   function parseCSV(text) {
     text = String(text || '').replace(/^﻿/, '');
@@ -481,9 +528,11 @@
       seen.add(id);
       const occasions = [...new Set(splitList(ix.occ >= 0 ? row[ix.occ] : '').map((x) => OCC_ALIASES[x.toLowerCase()] || OCC_ALIASES[x]).filter(Boolean))];
       const weather = [...new Set(splitList(ix.wx >= 0 ? row[ix.wx] : '').map((x) => WX_ALIASES[x.toLowerCase()] || WX_ALIASES[x]).filter(Boolean))];
+      const type = inferType(cat, name + ' ' + zh), color = colorFromName(ix.color >= 0 ? row[ix.color] : '') || '#9AA0A6';
+      const at = autoTags(cat, type, color);
       const it = {
-        id, cat, type: inferType(cat, name + ' ' + zh), name: name || zh, nameZh: zh, color: colorFromName(ix.color >= 0 ? row[ix.color] : '') || '#9AA0A6',
-        occasions, weather, laundry: false, addedAt: Date.now(),
+        id, cat, type, name: name || zh, nameZh: zh, color,
+        occasions: occasions.length ? occasions : at.occasions, weather: weather.length ? weather : at.weather, laundry: false, addedAt: Date.now(),
       };
       items.push(it); tmp.items.push(it);
     }
@@ -502,7 +551,7 @@
     engine: {
       CATEGORIES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
-      minFeasibleN, inferType, relevant,
+      minFeasibleN, inferType, relevant, autoTags, colorKey,
     },
   });
 })(typeof window !== 'undefined' ? window : globalThis);
