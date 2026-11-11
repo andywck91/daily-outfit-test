@@ -168,7 +168,7 @@ test('CSV import reads the Wardrobe sheet of the Excel template (EN + 中文, al
     'T001,Top,White linen shirt,白色亚麻衬衫,White,"Minimal, Smart","Business, Casual, Client Visit, Summer",Hot & Humid,T001.jpg',
     'B003,Bottom,Black pencil skirt,黑色铅笔裙,Black,"Smart, Classic","Business, Formal, Client Visit",Air-con / Cool,B003.jpg',
     'S002,Shoes,Nude block heels,裸色粗跟鞋,Nude,"Smart, Classic","Business, Date, Formal, Party",Hot & Humid,S002.jpg',
-    'X1,Hat,Straw hat,草帽,Beige,,,,',
+    'X1,Spaceship,Rocket,火箭,Beige,,,,',
   ].join('\r\n');
   const s = E.defaultState();
   const r = E.importCSV(s, csv);
@@ -285,6 +285,45 @@ test('occasion is guessed from a calendar-style note (English and Chinese)', () 
   assert.equal(g('周六婚礼').occasion, 'Formal');
   assert.equal(g('去健身').occasion, 'Sport');
   assert.equal(g('blah').occasion, null);
+});
+
+test('finer kinds are inferred from names (EN + 中文) and exported/imported without loss', () => {
+  const inf = (c, n) => E.inferType(c, n);
+  assert.equal(inf('Bottom', 'Denim overalls'), 'overalls'); assert.equal(inf('Bottom', '黑色吊带裤'), 'overalls');
+  assert.equal(inf('Dress', 'Floral jumpsuit'), 'jumpsuit'); assert.equal(inf('Dress', '红色旗袍'), 'qipao'); assert.equal(inf('Dress', 'Baju kurung moden'), 'kurung');
+  assert.equal(inf('Outerwear', 'Beige trench coat'), 'trench'); assert.equal(inf('Outerwear', 'UV sun-protection jacket'), 'sunshield');
+  assert.equal(inf('Scarf', 'Satin tudung'), 'hijab'); assert.equal(inf('Eyewear', 'Black sunglasses'), 'sunglasses'); assert.equal(inf('Hat', 'straw hat'), 'straw');
+  const s = E.defaultState();
+  const mk = (cat, type, name, extra) => { const it = { id: E.nextId(s, cat), cat, type, name, nameZh: '', color: '#3B6FB6', occasions: ['Casual', 'Travel'], weather: ['hot_humid'], laundry: false, ...extra }; s.items.push(it); return it; };
+  mk('Bottom', 'overalls', 'Denim overalls'); mk('Dress', 'kurung', 'Sage kurung', { nameZh: '鼠尾草绿巴汝加兰', occasions: ['Festive', 'Formal'] }); mk('Top', 'shirt', 'Hanfu top', { custom: 'Hanfu' }); mk('Hat', 'straw', 'Straw hat');
+  const csv = E.wardrobeCSV(s);
+  const s2 = E.defaultState();
+  const r = E.importCSV(s2, csv);
+  assert.equal(r.items.length, 4); assert.equal(r.skipped, 0);
+  r.items.forEach((x, i) => {
+    const o = s.items[i];
+    assert.equal(x.id, o.id); assert.equal(x.cat, o.cat); assert.equal(x.type, o.type); assert.equal(x.color.toLowerCase(), o.color.toLowerCase());
+    assert.deepEqual(x.occasions.slice().sort(), o.occasions.slice().sort()); assert.deepEqual(x.weather, o.weather); assert.equal(x.custom, o.custom); assert.equal(x.nameZh, o.nameZh);
+  });
+});
+
+test('accessories (hat, belt, eyewear, scarf, watch) join a look only when they make sense', () => {
+  const s = E.defaultState();
+  const add = (cat, type, name, occ, wx) => s.items.push({ id: E.nextId(s, cat), cat, type, name, nameZh: '', color: '#1E1E20', occasions: occ, weather: wx || [], laundry: false });
+  ['T', 'T', 'T'].forEach((_, i) => add('Top', 'shirt', 'Shirt ' + i, ['Casual', 'Business']));
+  ['B', 'B', 'B'].forEach((_, i) => add('Bottom', 'trousers', 'Trousers ' + i, ['Casual', 'Business']));
+  add('Shoes', 'flats', 'Flats', ['Casual', 'Business']);
+  add('Hat', 'straw', 'Straw hat', ['Casual', 'Beach'], ['hot_sunny']); add('Belt', 'belt', 'Belt', ['Casual', 'Business']);
+  add('Scarf', 'scarf', 'Scarf', ['Casual', 'Business'], ['cool']); add('Eyewear', 'sunglasses', 'Shades', ['Casual'], ['hot_sunny']); add('Watch', 'watch', 'Watch', ['Casual', 'Business']);
+  const sunny = E.generate(s, 'Casual', ['hot_sunny'], { rng: E.mulberry32(1) }).looks[0].parts;
+  assert.ok(sunny.Hat && sunny.Eyewear && sunny.Belt && sunny.Watch, 'sunny casual day');
+  assert.ok(!sunny.Scarf, 'no scarf in the heat');
+  const office = E.generate(s, 'Business', ['aircon'], { rng: E.mulberry32(1) }).looks[0].parts;
+  assert.ok(!office.Hat && !office.Eyewear, 'no hat or shades in an air-con office'); assert.ok(office.Belt && office.Watch && office.Scarf);
+  const beach = E.generate(s, 'Beach', ['hot_sunny'], { rng: E.mulberry32(1) });
+  beach.looks.forEach((l) => { assert.ok(!l.parts.Belt && !l.parts.Watch); });
+  // gap table and shopping hints stay on the core groups
+  assert.deepEqual(Object.keys(E.gapMatrix(s)), E.CORE_CATS);
 });
 
 console.log(`\n${passed} tests passed`);

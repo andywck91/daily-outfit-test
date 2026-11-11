@@ -8,7 +8,7 @@
       'tab.today': 'Today', 'tab.wardrobe': 'Wardrobe', 'tab.history': 'Log', 'tab.gaps': 'Gaps', 'tab.settings': 'Settings',
       'common.save': 'Save', 'common.cancel': 'Cancel', 'common.delete': 'Delete', 'common.close': 'Close', 'common.yes': 'Yes', 'common.no': 'No', 'common.undo': 'Undo',
 
-      'cat.Top': 'Top', 'cat.Bottom': 'Bottom', 'cat.Dress': 'Dress', 'cat.Outerwear': 'Layer', 'cat.Shoes': 'Shoes', 'cat.Bag': 'Bag', 'cat.Jewelry': 'Jewelry',
+      'cat.Top': 'Top', 'cat.Bottom': 'Bottom', 'cat.Dress': 'Dress / one-piece', 'cat.Outerwear': 'Layer', 'cat.Shoes': 'Shoes', 'cat.Bag': 'Bag', 'cat.Jewelry': 'Jewelry',
       'catp.Top': 'Tops', 'catp.Bottom': 'Bottoms', 'catp.Dress': 'Dresses', 'catp.Outerwear': 'Layers', 'catp.Shoes': 'Shoes', 'catp.Bag': 'Bags', 'catp.Jewelry': 'Jewelry',
       'occ.Business': 'Business', 'occ.Casual': 'Casual', 'occ.Beach': 'Beach', 'occ.Sport': 'Sport', 'occ.Summer': 'Summer', 'occ.Date': 'Date', 'occ.Party': 'Party',
       'occ.Formal': 'Formal', 'occ.Travel': 'Travel', 'occ.ClientVisit': 'Client visit', 'occ.Festive': 'Festive (Raya / CNY / Deepavali)',
@@ -47,7 +47,7 @@
       'today.none': 'none', 'today.zoom': 'Tap the picture to enlarge',
 
       'wardrobe.add': '+ Add item', 'wardrobe.count': '{n} items', 'wardrobe.all': 'All',
-      'wardrobe.importCsv': 'Import CSV', 'wardrobe.demo': 'Load demo wardrobe', 'wardrobe.empty': 'No items here yet.',
+      'wardrobe.importCsv': 'Import CSV / backup', 'wardrobe.demo': 'Load demo wardrobe', 'wardrobe.empty': 'No items here yet.',
       'wardrobe.limit': 'Designed for up to about 200 items.',
       'status.available': 'Available', 'status.resting': 'Resting · {k} more', 'status.laundry': 'Laundry',
       'wardrobe.laundry': 'Laundry',
@@ -98,17 +98,21 @@
       'wardrobe.addMany': 'Add many photos', 'batch.title': 'Add many photos', 'batch.hint': 'Tap photos to select them (select all the shirts, say), then tap what they are. Photos named like an existing item ID (T001.jpg) or its name are attached to that item.', 'batch.loading': 'Reading photos {i} / {n}...', 'batch.all': 'Select all', 'batch.open': 'Select unassigned', 'batch.none': 'Clear', 'batch.info': '{sel} selected, {left} not assigned yet', 'batch.pick': 'Select some photos first.', 'view.photos': 'My photos', 'view.illus': 'Illustration', 'batch.save': 'Save {n} items', 'batch.needKind': 'First tap the photos, then tap what they are (e.g. Top, then Shirt). Then Save.', 'batch.failed': '{n} photo(s) could not be read (some phone formats such as HEIC are not supported). Try another photo.', 'batch.err': 'Could not save: {m}', 'batch.done': 'Added {n} items, {m} photos attached',
       'settings.removeBg': 'Remove plain photo backgrounds (works best on a plain wall or bed)', 'settings.modest': 'Prefer more coverage (avoid tanks, shorts and mini dresses)',
       'settings.selfie': 'Pick skin and hair colour from a selfie', 'selfie.title': 'Selfie colours', 'selfie.hint': 'Tap your skin, then your hair. The photo stays on this phone and is not saved.', 'selfie.skin': 'Tap skin', 'selfie.hair': 'Tap hair', 'selfie.done': 'Done',
-      'toast.bgFail': 'Background not removed (not plain enough); kept the original.'
+      'toast.bgFail': 'Background not removed (not plain enough); kept the original.',
+      'type.polo': 'Polo shirt', 'type.blouse': 'Blouse', 'type.sweatshirt': 'Sweatshirt', 'type.hoodie': 'Hoodie', 'type.crop': 'Crop top', 'type.overalls': 'Overalls (dungarees)', 'type.wideleg': 'Wide-leg trousers', 'type.joggers': 'Joggers', 'type.leggings': 'Leggings', 'type.cargo': 'Cargo pants', 'type.culottes': 'Culottes', 'type.maxiskirt': 'Maxi skirt', 'type.maxi': 'Maxi dress', 'type.shirtdress': 'Shirt dress', 'type.jumpsuit': 'Jumpsuit', 'type.playsuit': 'Playsuit', 'type.qipao': 'Qipao (cheongsam)', 'type.kurung': 'Baju kurung', 'type.kebaya': 'Kebaya', 'type.trench': 'Trench coat', 'type.denim': 'Denim jacket', 'type.puffer': 'Puffer jacket', 'type.sunshield': 'Sun-protection jacket', 'type.kimono': 'Kimono cardigan', 'type.vest': 'Vest', 'type.loafers': 'Loafers', 'type.boots': 'Boots', 'type.slides': 'Slides', 'type.wedges': 'Wedges', 'type.crossbody': 'Crossbody bag', 'type.handbag': 'Handbag', 'type.clutch': 'Clutch', 'type.beltbag': 'Belt bag', 'type.necklace': 'Necklace', 'type.earrings': 'Earrings', 'type.bracelet': 'Bracelet', 'type.ring': 'Ring', 'type.cap': 'Cap', 'type.bucket': 'Bucket hat', 'type.straw': 'Straw hat', 'type.fedora': 'Fedora', 'type.scarf': 'Scarf', 'type.shawl': 'Shawl', 'type.hijab': 'Hijab / tudung', 'type.bandana': 'Bandana', 'type.belt': 'Belt', 'type.sunglasses': 'Sunglasses', 'type.glasses': 'Glasses', 'type.watch': 'Watch',
+      'cat.Hat': 'Hat', 'cat.Scarf': 'Scarf / headscarf', 'cat.Belt': 'Belt', 'cat.Eyewear': 'Eyewear', 'cat.Watch': 'Watch', 'catp.Hat': 'Hats', 'catp.Scarf': 'Scarves', 'catp.Belt': 'Belts', 'catp.Eyewear': 'Eyewear', 'catp.Watch': 'Watches',
+      'kind.mine': 'My own kind', 'kind.add': '+ Add', 'custom.title': 'Add my own kind', 'custom.name': 'Name (e.g. Hanfu, Sarong)', 'custom.cat': 'Group', 'custom.base': 'Closest to (used for drawing and matching)', 'custom.save': 'Add kind', 'custom.needName': 'Type a name first.', 'custom.mine': 'My own kinds', 'custom.none': 'None yet. Add one when choosing what an item is.', 'custom.del': 'Remove',
+      'export.csvHelp': 'CSV = item list only (no photos). Open it in Excel, or import it on another phone.', 'export.jsonHelp': 'Full backup = photos, outfit log and settings. Restore it on another phone for an exact copy.', 'toast.exported': 'Ready: {f}', 'toast.exportFail': 'Could not export: {m}', 'wardrobe.exportCsv': 'Export list (CSV)', 'settings.importAny': 'Import file (CSV or backup)', 'toast.importedKinds': 'Imported {n} items ({s} skipped)'
     },
     zh: {
       'app.title': '每日穿搭',
       'tab.today': '今日', 'tab.wardrobe': '衣柜', 'tab.history': '记录', 'tab.gaps': '缺口', 'tab.settings': '设置',
       'common.save': '保存', 'common.cancel': '取消', 'common.delete': '删除', 'common.close': '关闭', 'common.yes': '是', 'common.no': '否', 'common.undo': '撤销',
 
-      'cat.Top': '上衣', 'cat.Bottom': '下装', 'cat.Dress': '连衣裙', 'cat.Outerwear': '外搭', 'cat.Shoes': '鞋', 'cat.Bag': '包', 'cat.Jewelry': '首饰',
+      'cat.Top': '上衣', 'cat.Bottom': '下装', 'cat.Dress': '连衣裙/连体', 'cat.Outerwear': '外搭', 'cat.Shoes': '鞋', 'cat.Bag': '包', 'cat.Jewelry': '首饰',
       'catp.Top': '上衣', 'catp.Bottom': '下装', 'catp.Dress': '连衣裙', 'catp.Outerwear': '外搭', 'catp.Shoes': '鞋', 'catp.Bag': '包', 'catp.Jewelry': '首饰',
       'occ.Business': '商务', 'occ.Casual': '休闲', 'occ.Beach': '海边', 'occ.Sport': '运动', 'occ.Summer': '夏天', 'occ.Date': '约会', 'occ.Party': '聚会',
-      'occ.Formal': '正式', 'occ.Travel': '旅行', 'occ.ClientVisit': '拜访客户', 'occ.Festive': '节庆（哈芝节/春节/屠妖节）',
+      'occ.Formal': '正式', 'occ.Travel': '旅行', 'occ.ClientVisit': '拜访客户', 'occ.Festive': '节庆（开斋节/春节/屠妖节）',
       'occs.Festive': '节庆',
       'type.shirt': '衬衫', 'type.tee': 'T恤', 'type.tank': '背心', 'type.knit': '针织上衣',
       'type.trousers': '长裤', 'type.jeans': '牛仔裤', 'type.skirt': '半身裙', 'type.shorts': '短裤',
@@ -144,7 +148,7 @@
       'today.none': '无', 'today.zoom': '点图片可放大',
 
       'wardrobe.add': '+ 添加单品', 'wardrobe.count': '{n} 件', 'wardrobe.all': '全部',
-      'wardrobe.importCsv': '导入 CSV', 'wardrobe.demo': '载入示例衣柜', 'wardrobe.empty': '这里还没有单品。',
+      'wardrobe.importCsv': '导入 CSV / 备份', 'wardrobe.demo': '载入示例衣柜', 'wardrobe.empty': '这里还没有单品。',
       'wardrobe.limit': '按约 200 件以内设计。',
       'status.available': '可穿', 'status.resting': '休息中 · 还需 {k} 套', 'status.laundry': '洗衣中',
       'wardrobe.laundry': '洗衣',
@@ -195,7 +199,11 @@
       'wardrobe.addMany': '批量添加照片', 'batch.title': '批量添加照片', 'batch.hint': '点选照片（比如选中所有衬衫），再点它们是什么。文件名与已有编号（如 T001.jpg）或名称相同的照片，会直接放到那件衣物上。', 'batch.loading': '正在读取照片 {i} / {n}...', 'batch.all': '全选', 'batch.open': '选未分类的', 'batch.none': '取消选择', 'batch.info': '已选 {sel} 张，还有 {left} 张未分类', 'batch.pick': '请先选几张照片。', 'view.photos': '我的衣物照片', 'view.illus': '插画', 'batch.save': '保存 {n} 件', 'batch.needKind': '请先点选照片，再点它们是什么（例如先点“上衣”，再点“衬衫”），然后保存。', 'batch.failed': '有 {n} 张照片读取失败（部分手机格式如 HEIC 不支持），请换一张试试。', 'batch.err': '保存失败：{m}', 'batch.done': '已添加 {n} 件，{m} 张照片已配到现有衣物',
       'settings.removeBg': '去除纯色照片背景（背景越单一效果越好）', 'settings.modest': '偏好更多遮盖（避开背心、短裤、迷你连衣裙）',
       'settings.selfie': '从自拍照取肤色和发色', 'selfie.title': '自拍取色', 'selfie.hint': '先点皮肤，再点头发。照片只在这部手机上处理，不会保存。', 'selfie.skin': '点皮肤', 'selfie.hair': '点头发', 'selfie.done': '完成',
-      'toast.bgFail': '背景不够单一，没有去除，保留原图。'
+      'toast.bgFail': '背景不够单一，没有去除，保留原图。',
+      'type.polo': 'Polo衫', 'type.blouse': '女式衬衫', 'type.sweatshirt': '卫衣', 'type.hoodie': '连帽卫衣', 'type.crop': '短版上衣', 'type.overalls': '吊带裤', 'type.wideleg': '阔腿裤', 'type.joggers': '束脚运动裤', 'type.leggings': '紧身裤', 'type.cargo': '工装裤', 'type.culottes': '裙裤', 'type.maxiskirt': '长半身裙', 'type.maxi': '长裙', 'type.shirtdress': '衬衫裙', 'type.jumpsuit': '连体裤', 'type.playsuit': '连体短裤', 'type.qipao': '旗袍', 'type.kurung': '巴汝加兰', 'type.kebaya': '可峇雅', 'type.trench': '风衣', 'type.denim': '牛仔外套', 'type.puffer': '羽绒/棉服', 'type.sunshield': '防晒衣', 'type.kimono': '和风开衫', 'type.vest': '马甲', 'type.loafers': '乐福鞋', 'type.boots': '靴子', 'type.slides': '拖鞋', 'type.wedges': '坡跟鞋', 'type.crossbody': '斜挎包', 'type.handbag': '手提包', 'type.clutch': '手拿包', 'type.beltbag': '腰包', 'type.necklace': '项链', 'type.earrings': '耳环', 'type.bracelet': '手链', 'type.ring': '戒指', 'type.cap': '鸭舌帽', 'type.bucket': '渔夫帽', 'type.straw': '草帽', 'type.fedora': '礼帽', 'type.scarf': '围巾', 'type.shawl': '披肩', 'type.hijab': '头巾 (tudung)', 'type.bandana': '方巾', 'type.belt': '腰带', 'type.sunglasses': '墨镜', 'type.glasses': '眼镜', 'type.watch': '手表',
+      'cat.Hat': '帽子', 'cat.Scarf': '围巾/头巾', 'cat.Belt': '腰带', 'cat.Eyewear': '眼镜', 'cat.Watch': '手表', 'catp.Hat': '帽子', 'catp.Scarf': '围巾/头巾', 'catp.Belt': '腰带', 'catp.Eyewear': '眼镜', 'catp.Watch': '手表',
+      'kind.mine': '自定义种类', 'kind.add': '+ 新增', 'custom.title': '新增自己的种类', 'custom.name': '名称（例如：汉服、纱笼）', 'custom.cat': '属于哪一组', 'custom.base': '最接近哪一种（用于画图和搭配）', 'custom.save': '添加', 'custom.needName': '请先输入名称。', 'custom.mine': '我的自定义种类', 'custom.none': '还没有。选择衣物种类时可以新增。', 'custom.del': '删除',
+      'export.csvHelp': 'CSV = 只有衣物清单（不含照片）。可用 Excel 打开，也能在另一部手机导入。', 'export.jsonHelp': '完整备份 = 照片、穿搭记录和设置。在另一部手机恢复后会和原来一模一样。', 'toast.exported': '已准备好：{f}', 'toast.exportFail': '导出失败：{m}', 'wardrobe.exportCsv': '导出清单 (CSV)', 'settings.importAny': '导入文件（CSV 或备份）', 'toast.importedKinds': '已导入 {n} 件（跳过 {s} 行）'
     },
   };
   let lang = 'en';

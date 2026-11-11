@@ -233,6 +233,68 @@ const ok = (m) => console.log('ok  -', m);
   assert.ok(b1.color.toLowerCase().startsWith('#1') || b1.color.toLowerCase().startsWith('#2'), 'navy detected from the cut-out: ' + b1.color);
   ok('batch add: 3 photos selected in bulk; 2 new items, T001.jpg attached to existing T001 (was ' + hadPhoto + ' photo before); background removed (colour ' + b1.color + ')');
 
+  // finer kinds + the user's own kind
+  await page.click('button[data-act="tab"][data-tab="wardrobe"]');
+  await page.click('button[data-act="filter"][data-c="All"]');
+  await page.click('button[data-act="add"]'); await page.waitForSelector('.sheet');
+  await page.setInputFiles('#fileGal', PHOTO); await page.waitForSelector('text=Colour picked from your photo');
+  assert.ok(await page.locator('button[data-act="kind"][data-v="overalls"]').count() === 1, 'overalls kind exists');
+  assert.ok(await page.locator('button[data-act="kind"][data-v="jumpsuit"]').count() === 1 && await page.locator('button[data-act="kind"][data-v="qipao"]').count() === 1);
+  await page.click('button[data-act="kind"][data-v="overalls"]');
+  await page.click('button[data-act="sheet-save"]');
+  await page.waitForSelector('text=overalls');
+  s = await st();
+  const ov = s.items[s.items.length - 1];
+  assert.equal(ov.type, 'overalls'); assert.equal(ov.cat, 'Bottom'); assert.ok(/^B\d{3}$/.test(ov.id));
+  await page.click('button[data-act="add"]'); await page.waitForSelector('.sheet');
+  await page.setInputFiles('#fileGal', PHOTO); await page.waitForSelector('text=Colour picked from your photo');
+  await page.click('button[data-act="newkind"][data-c="Dress"]');
+  await page.fill('#nk-name', 'Sarong');
+  await page.click('button[data-act="nk-base"][data-v="maxi"]');
+  await page.click('button[data-act="nk-save"]');
+  await page.waitForSelector('.sheet button.chip.on:has-text("Sarong")');
+  await page.click('button[data-act="sheet-save"]');
+  await page.waitForSelector('.item:has-text("Red sarong")');
+  s = await st();
+  const sar = s.items[s.items.length - 1];
+  assert.equal(sar.custom, 'Sarong'); assert.equal(sar.type, 'maxi'); assert.equal(sar.cat, 'Dress'); assert.equal(s.customTypes.length, 1);
+  ok('finer kinds (overalls, jumpsuit, qipao...) and a user-made kind "Sarong" (drawn like a maxi dress): ' + ov.name + ' / ' + sar.name);
+  await shot('custom-kind');
+
+  // export the list and the full backup, restore both on a "second phone" (fresh browser context)
+  await page.click('button[data-act="tab"][data-tab="settings"]');
+  const [dlCsv] = await Promise.all([page.waitForEvent('download'), page.click('button[data-act="export-csv"]')]);
+  const csvPath = path.join(OUT, 'export.csv'); await dlCsv.saveAs(csvPath);
+  const [dlJson] = await Promise.all([page.waitForEvent('download'), page.click('button[data-act="export-json"]')]);
+  const jsonPath = path.join(OUT, 'export.json'); await dlJson.saveAs(jsonPath);
+  const origItems = (await st()).items;
+  const ctx2 = await browser.newContext({ ...devices['Pixel 7'], serviceWorkers: 'block' });
+  const p2 = await ctx2.newPage();
+  await p2.goto(url); await p2.waitForSelector('button[data-act="onb-done"]'); await p2.click('button[data-act="onb-done"]');
+  await p2.click('button[data-act="tab"][data-tab="wardrobe"]');
+  await p2.setInputFiles('#fileCsv', csvPath);
+  await p2.waitForSelector('text=Imported ' + origItems.length + ' items');
+  const got = await p2.evaluate(() => JSON.parse(JSON.stringify(window.__app.state)));
+  assert.equal(got.items.length, origItems.length);
+  origItems.forEach((o) => {
+    const g = got.items.find((x) => x.id === o.id); assert.ok(g, 'missing ' + o.id);
+    assert.equal(g.type, o.type); assert.equal(g.cat, o.cat); assert.equal(g.color.toLowerCase(), o.color.toLowerCase()); assert.equal(g.custom, o.custom);
+    assert.deepEqual([...g.occasions].sort(), [...o.occasions].sort()); assert.deepEqual([...g.weather].sort(), [...o.weather].sort());
+  });
+  assert.ok(got.customTypes.some((k) => k.label === 'Sarong' && k.base === 'maxi'), 'own kind recreated from the CSV');
+  ok('CSV exported and imported on a fresh phone: ' + got.items.length + ' items identical (kinds, colours, occasions, weather, own kind "Sarong") with nothing changed in the app');
+  // full backup restores photos + log + settings
+  await p2.click('button[data-act="tab"][data-tab="settings"]');
+  await p2.setInputFiles('#fileJson', jsonPath);
+  await p2.click('button[data-act="dlg-yes"]');
+  await p2.waitForSelector('text=Backup restored');
+  const got2 = await p2.evaluate(() => ({ n: window.__app.state.items.length, log: window.__app.state.log.length, photos: Object.keys(window.__app.photos).length, nrule: window.__app.state.settings.n }));
+  const orig2 = await page.evaluate(() => ({ log: window.__app.state.log.length, photos: Object.keys(window.__app.photos).length }));
+  assert.equal(got2.n, origItems.length); assert.equal(got2.log, orig2.log); assert.equal(got2.photos, orig2.photos); assert.ok(orig2.photos >= 3);
+  ok('full backup restored on a fresh phone: ' + got2.n + ' items, ' + got2.photos + ' photos, ' + got2.log + ' logged outfit(s)');
+  await ctx2.close();
+  await page.click('button[data-act="tab"][data-tab="wardrobe"]');
+
   // flat-lay board from the user's own photos
   const flat = await page.evaluate(() => {
     const A = window.__app, S = A.state, by = (id) => S.items.find((i) => i.id === id);

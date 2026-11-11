@@ -3,16 +3,28 @@
   'use strict';
   const OF = (g.OF = g.OF || {});
 
-  const CATEGORIES = ['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Bag', 'Jewelry'];
+  const CORE_CATS = ['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Bag', 'Jewelry'];
+  const ACCESSORIES = ['Hat', 'Scarf', 'Belt', 'Eyewear', 'Watch'];
+  const CATEGORIES = CORE_CATS.concat(ACCESSORIES);
   const CLOTHING = ['Top', 'Bottom', 'Dress', 'Outerwear'];
   const TYPES = {
-    Top: ['shirt', 'tee', 'tank', 'knit'],
-    Bottom: ['trousers', 'jeans', 'skirt', 'shorts'],
-    Dress: ['midi', 'mini'],
-    Outerwear: ['blazer', 'cardigan', 'jacket'],
-    Shoes: ['heels', 'flats', 'sneakers', 'sandals'],
-    Bag: ['tote', 'shoulder', 'backpack'],
-    Jewelry: ['set'],
+    Top: ['shirt', 'tee', 'tank', 'knit', 'polo', 'blouse', 'sweatshirt', 'hoodie', 'crop'],
+    Bottom: ['trousers', 'jeans', 'skirt', 'shorts', 'overalls', 'wideleg', 'joggers', 'leggings', 'cargo', 'culottes', 'maxiskirt'],
+    Dress: ['midi', 'mini', 'maxi', 'shirtdress', 'jumpsuit', 'playsuit', 'qipao', 'kurung', 'kebaya'],
+    Outerwear: ['blazer', 'cardigan', 'jacket', 'trench', 'denim', 'puffer', 'sunshield', 'kimono', 'vest'],
+    Shoes: ['heels', 'flats', 'sneakers', 'sandals', 'loafers', 'boots', 'slides', 'wedges'],
+    Bag: ['tote', 'shoulder', 'backpack', 'crossbody', 'handbag', 'clutch', 'beltbag'],
+    Jewelry: ['set', 'necklace', 'earrings', 'bracelet', 'ring'],
+    Hat: ['cap', 'bucket', 'straw', 'fedora'],
+    Scarf: ['scarf', 'shawl', 'hijab', 'bandana'],
+    Belt: ['belt'],
+    Eyewear: ['sunglasses', 'glasses'],
+    Watch: ['watch'],
+  };
+  /** the original handful of kinds: used when suggesting what to buy, so the list stays sensible */
+  const CORE_TYPES = {
+    Top: ['shirt', 'tee', 'tank', 'knit'], Bottom: ['trousers', 'jeans', 'skirt', 'shorts'], Dress: ['midi', 'mini'], Outerwear: ['blazer', 'cardigan', 'jacket'],
+    Shoes: ['heels', 'flats', 'sneakers', 'sandals'], Bag: ['tote', 'shoulder', 'backpack'], Jewelry: ['set'],
   };
   const OCCASIONS = ['Business', 'Casual', 'Beach', 'Sport', 'Summer', 'Date', 'Party', 'Formal', 'Travel', 'ClientVisit', 'Festive'];
   const WX = ['hot_humid', 'hot_sunny', 'rainy', 'aircon', 'cool'];
@@ -93,13 +105,14 @@
       profile: { name: '', figure: 'feminine', skin: '#E8BFA0', hairColor: '#2A1F1C', hairLength: 'long', makeup: true, lang: 'en', modest: false, removeBg: true },
       settings: {
         n: 10,
-        rule: { Top: true, Bottom: true, Dress: true, Outerwear: true, Shoes: false, Bag: false, Jewelry: false },
+        rule: { Top: true, Bottom: true, Dress: true, Outerwear: true, Shoes: false, Bag: false, Jewelry: false, Hat: false, Scarf: false, Belt: false, Eyewear: false, Watch: false },
         minItems: 3,
       },
       items: [],
       log: [],
       counters: {},
       feedback: { item: {}, color: {} },
+      customTypes: [],
       onboarded: false,
     };
   }
@@ -361,6 +374,30 @@
       }
     }
 
+    // accessories: one per look where it makes sense, rotated so the three looks differ
+    const accPools = {};
+    const sunny = cond.includes('hot_sunny') || occasion === 'Beach', coolish = cond.includes('aircon') || cond.includes('cool');
+    ACCESSORIES.forEach((cat) => {
+      if (!state.items.some((i) => i.cat === cat)) return;
+      let list = top(cat, 4);
+      list = list.filter(({ it }) => {
+        if (cat === 'Hat') return sunny && !['Formal', 'Business', 'ClientVisit', 'Date', 'Party'].includes(occasion) || occasion === 'Beach';
+        if (cat === 'Eyewear') return it.type === 'glasses' || sunny || ['Travel', 'Beach', 'Summer'].includes(occasion);
+        if (cat === 'Scarf') return it.type === 'hijab' || (it.type === 'bandana' ? ['Beach', 'Sport', 'Travel', 'Casual'].includes(occasion) : coolish);
+        if (cat === 'Belt') return !['Sport', 'Beach', 'Summer'].includes(occasion);
+        if (cat === 'Watch') return occasion !== 'Beach';
+        return true;
+      });
+      if (list.length) accPools[cat] = list;
+    });
+    chosen.forEach((c, i) => {
+      for (const cat of Object.keys(accPools)) {
+        if (cat === 'Belt' && !(c.parts.Bottom && ['trousers', 'jeans', 'skirt', 'wideleg', 'cargo', 'culottes'].includes(c.parts.Bottom.type))) continue;
+        const l = accPools[cat];
+        c.parts[cat] = l[i % l.length].it;
+      }
+    });
+
     const looks = chosen.map((c, i) => {
       const stretch = Object.values(c.parts).filter((it) => it && stretchNames.includes(it.id)).map((it) => it.id);
       return { parts: c.parts, score: c.score, stretch, groom: groom(occasion, cond, state.profile, i) };
@@ -411,7 +448,7 @@
   }
   function gapMatrix(state) {
     const m = {};
-    for (const c of CATEGORIES) {
+    for (const c of CORE_CATS) {
       m[c] = {};
       for (const o of OCCASIONS) m[c][o] = state.items.filter((i) => i.cat === c && (i.occasions || []).includes(o)).length;
     }
@@ -424,7 +461,7 @@
     state.log.forEach((e) => (usage[e.occasion] = (usage[e.occasion] || 0) + 1));
     const wOcc = (o) => (state.log.length ? 1 + (usage[o] || 0) : o === 'Business' || o === 'Casual' ? 3 : 1);
     const out = [];
-    for (const c of CATEGORIES) {
+    for (const c of CORE_CATS) {
       const cells = OCCASIONS.filter((o) => relevant(c, o)).map((o) => ({ o, deficit: Math.max(0, min - m[c][o]), have: m[c][o], score: Math.max(0, min - m[c][o]) * wOcc(o) * (['Shoes', 'Bag', 'Jewelry'].includes(c) ? 0.5 : 1) }))
         .filter((x) => x.deficit > 0).sort((a, b) => b.score - a.score);
       if (!cells.length) continue;
@@ -434,9 +471,9 @@
       owned.forEach((i) => { const n = basicColorName(i.color); if (n && n in counts) counts[n]++; });
       const color = Object.keys(counts).sort((a, b) => counts[a] - counts[b])[0];
       const tcount = {};
-      TYPES[c].forEach((t) => (tcount[t] = 0));
+      CORE_TYPES[c].forEach((t) => (tcount[t] = 0));
       owned.forEach((i) => { if (i.type in tcount) tcount[i.type]++; });
-      const type = TYPES[c].slice().sort((a, b) => tcount[a] - tcount[b])[0];
+      const type = CORE_TYPES[c].slice().sort((a, b) => tcount[a] - tcount[b])[0];
       out.push({ cat: c, type, color, occasions: cells.slice(0, 2).map((x) => x.o), have: cells[0].have, min, score: cells.reduce((a, x) => a + x.score, 0) });
     }
     return out.sort((a, b) => b.score - a.score).slice(0, limit || 5);
@@ -455,10 +492,32 @@
     sneakers: ['Casual', 'Sport', 'Travel'], sandals: ['Casual', 'Beach', 'Summer', 'Travel', 'Festive'],
     tote: ['Business', 'ClientVisit', 'Casual', 'Travel'], shoulder: ['Business', 'Formal', 'Date', 'Party', 'Casual', 'Festive'],
     backpack: ['Sport', 'Travel', 'Casual'], set: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Party', 'Festive'],
+    polo: ['Business', 'ClientVisit', 'Casual', 'Sport', 'Travel'], blouse: ['Business', 'ClientVisit', 'Casual', 'Date', 'Festive'],
+    sweatshirt: ['Casual', 'Travel', 'Sport'], hoodie: ['Casual', 'Travel', 'Sport'], crop: ['Casual', 'Party', 'Summer', 'Beach', 'Date'],
+    overalls: ['Casual', 'Travel', 'Summer'], wideleg: ['Business', 'ClientVisit', 'Casual', 'Date', 'Travel'], joggers: ['Casual', 'Sport', 'Travel'],
+    leggings: ['Sport', 'Casual'], cargo: ['Casual', 'Travel'], culottes: ['Business', 'ClientVisit', 'Casual', 'Date'], maxiskirt: ['Casual', 'Date', 'Party', 'Festive', 'Travel'],
+    maxi: ['Date', 'Party', 'Festive', 'Beach', 'Summer', 'Casual', 'Travel'], shirtdress: ['Business', 'ClientVisit', 'Casual', 'Date', 'Travel'],
+    jumpsuit: ['Date', 'Party', 'Casual', 'Business', 'Travel', 'Festive'], playsuit: ['Casual', 'Summer', 'Beach', 'Travel'],
+    qipao: ['Formal', 'Festive', 'Party', 'Date', 'ClientVisit'], kurung: ['Festive', 'Formal', 'Business', 'ClientVisit', 'Casual', 'Party'], kebaya: ['Festive', 'Formal', 'Party', 'Date'],
+    trench: ['Business', 'ClientVisit', 'Formal', 'Travel', 'Casual'], denim: ['Casual', 'Travel'], puffer: ['Travel', 'Casual'],
+    sunshield: ['Casual', 'Travel', 'Beach', 'Summer', 'Sport'], kimono: ['Casual', 'Beach', 'Summer', 'Travel', 'Party'], vest: ['Business', 'ClientVisit', 'Casual', 'Formal'],
+    loafers: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Travel'], boots: ['Casual', 'Travel', 'Date', 'Party'], slides: ['Casual', 'Beach', 'Summer', 'Travel'],
+    wedges: ['Casual', 'Date', 'Party', 'Festive', 'Business'],
+    crossbody: ['Casual', 'Travel', 'Sport', 'Date'], handbag: ['Business', 'ClientVisit', 'Formal', 'Date', 'Party', 'Festive', 'Casual'], clutch: ['Formal', 'Party', 'Date', 'Festive'], beltbag: ['Sport', 'Travel', 'Casual'],
+    necklace: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Party', 'Festive'], earrings: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Party', 'Festive'],
+    bracelet: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Party', 'Festive'], ring: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Party', 'Festive'],
+    cap: ['Casual', 'Sport', 'Travel', 'Beach', 'Summer'], bucket: ['Casual', 'Sport', 'Travel', 'Beach', 'Summer'], straw: ['Beach', 'Summer', 'Casual', 'Travel'], fedora: ['Casual', 'Date', 'Travel', 'Party'],
+    scarf: ['Business', 'ClientVisit', 'Casual', 'Travel', 'Date', 'Formal'], shawl: ['Formal', 'Party', 'Festive', 'Date', 'Business'],
+    hijab: ['Business', 'ClientVisit', 'Casual', 'Formal', 'Festive', 'Party', 'Date', 'Travel', 'Sport', 'Summer'], bandana: ['Casual', 'Travel', 'Sport', 'Beach'],
+    belt: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Travel'], sunglasses: ['Casual', 'Beach', 'Summer', 'Travel', 'Sport', 'Date'],
+    glasses: ['Business', 'ClientVisit', 'Casual', 'Formal', 'Date', 'Travel'], watch: ['Business', 'ClientVisit', 'Formal', 'Casual', 'Date', 'Sport', 'Travel', 'Party'],
   };
   const AUTO_WX = {
     tank: ['hot_humid', 'hot_sunny'], shorts: ['hot_humid', 'hot_sunny'], mini: ['hot_humid', 'hot_sunny'], sandals: ['hot_humid', 'hot_sunny'],
     knit: ['aircon', 'cool'], blazer: ['aircon', 'cool'], cardigan: ['aircon', 'cool'], jacket: ['aircon', 'cool'],
+    hoodie: ['aircon', 'cool'], sweatshirt: ['aircon', 'cool'], trench: ['aircon', 'cool'], puffer: ['aircon', 'cool'], vest: ['aircon', 'cool'], boots: ['aircon', 'cool'],
+    crop: ['hot_humid', 'hot_sunny'], playsuit: ['hot_humid', 'hot_sunny'], slides: ['hot_humid', 'hot_sunny'], sunshield: ['hot_sunny'],
+    cap: ['hot_sunny'], bucket: ['hot_sunny'], straw: ['hot_sunny'], sunglasses: ['hot_sunny'], scarf: ['aircon', 'cool'], shawl: ['aircon'],
   };
   /** Suggested occasions + weather for an item from its type and colour, so users only have to say what it is. */
   function autoTags(cat, type, color) {
@@ -532,15 +591,30 @@
   const CAT_ALIASES = {
     top: 'Top', tops: 'Top', '上衣': 'Top', bottom: 'Bottom', bottoms: 'Bottom', '下装': 'Bottom', '裤': 'Bottom', dress: 'Dress', '连衣裙': 'Dress',
     outerwear: 'Outerwear', '外套': 'Outerwear', shoes: 'Shoes', shoe: 'Shoes', '鞋': 'Shoes', bag: 'Bag', bags: 'Bag', '包': 'Bag',
-    jewelry: 'Jewelry', jewellery: 'Jewelry', '首饰': 'Jewelry',
+    jewelry: 'Jewelry', jewellery: 'Jewelry', '首饰': 'Jewelry', '连体': 'Dress', 'one-piece': 'Dress', onepiece: 'Dress', '连衣裙/连体': 'Dress',
+    hat: 'Hat', hats: 'Hat', cap: 'Hat', '帽子': 'Hat', '帽': 'Hat', scarf: 'Scarf', scarves: 'Scarf', shawl: 'Scarf', hijab: 'Scarf', '围巾': 'Scarf', '头巾': 'Scarf',
+    belt: 'Belt', belts: 'Belt', '腰带': 'Belt', '皮带': 'Belt', eyewear: 'Eyewear', glasses: 'Eyewear', sunglasses: 'Eyewear', '眼镜': 'Eyewear', '墨镜': 'Eyewear',
+    watch: 'Watch', watches: 'Watch', '手表': 'Watch', layer: 'Outerwear', layers: 'Outerwear', '外搭': 'Outerwear',
   };
   const TYPE_WORDS = [
+    ['denim', /denim jacket|jean jacket|牛仔外套/i], ['trench', /trench|风衣/i], ['puffer', /puffer|down jacket|羽绒/i], ['sunshield', /sun ?protect|sunshield|uv|防晒/i],
+    ['kimono', /kimono|披肩外套/i], ['vest', /waistcoat|马甲|\bvest\b/i],
     ['blazer', /blazer|suit jacket|西装/i], ['cardigan', /cardigan|开衫/i], ['jacket', /jacket|coat|夹克|外套/i],
-    ['sneakers', /sneaker|trainer|running|运动鞋|球鞋/i], ['heels', /heel|pump|高跟|粗跟/i], ['sandals', /sandal|slide|凉鞋|拖鞋/i], ['flats', /flat|loafer|ballet|平底|乐福/i],
-    ['backpack', /backpack|双肩/i], ['shoulder', /shoulder|crossbody|sling|单肩|斜挎/i], ['tote', /tote|托特/i],
+    ['crossbody', /crossbody|斜挎/i], ['beltbag', /belt bag|fanny|腰包|胸包/i], ['clutch', /clutch|手拿包|晚宴包/i], ['handbag', /handbag|手提/i],
+    ['backpack', /backpack|双肩/i], ['shoulder', /shoulder|sling|单肩/i], ['tote', /tote|托特/i],
+    ['sneakers', /sneaker|trainer|running|运动鞋|球鞋/i], ['heels', /heel|pump|高跟|粗跟/i], ['wedges', /wedge|坡跟|松糕/i], ['slides', /slide|拖鞋/i], ['sandals', /sandal|凉鞋/i],
+    ['loafers', /loafer|乐福/i], ['boots', /boot|靴/i], ['flats', /flat|ballet|平底/i],
+    ['necklace', /necklace|项链/i], ['earrings', /earring|耳环|耳钉/i], ['bracelet', /bracelet|bangle|手链|手镯/i], ['ring', /\bring\b|戒指/i],
+    ['straw', /straw|草帽/i], ['bucket', /bucket|渔夫/i], ['fedora', /fedora|礼帽/i], ['cap', /\bcap\b|鸭舌|棒球帽/i],
+    ['hijab', /hijab|tudung|头巾|图当/i], ['shawl', /shawl|披肩/i], ['bandana', /bandana|方巾/i], ['scarf', /scarf|围巾/i],
+    ['sunglasses', /sunglass|墨镜|太阳镜/i], ['glasses', /glass|眼镜/i], ['belt', /belt|腰带|皮带/i], ['watch', /watch|手表/i],
+    ['overalls', /overall|dungaree|bib|吊带裤|背带裤/i], ['wideleg', /wide.?leg|阔腿/i], ['joggers', /jogger|sweatpant|运动裤|束脚/i], ['leggings', /legging|瑜伽裤|打底裤/i],
+    ['cargo', /cargo|工装裤/i], ['culottes', /culotte|裙裤/i], ['maxiskirt', /maxi skirt|long skirt|长半身裙/i],
     ['jeans', /jean|denim|牛仔/i], ['shorts', /short(?!\s*sleeve)|短裤/i], ['skirt', /skirt|裙(?!子$)/i], ['trousers', /trouser|pant|slack|裤/i],
-    ['tank', /tank|camisole|vest|背心|吊带/i], ['knit', /knit|sweater|jumper|针织|毛衣/i], ['tee', /\btee\b|t-shirt|tshirt|T恤/i], ['shirt', /shirt|blouse|衬衫/i],
-    ['mini', /mini|短裙/i], ['midi', /midi|maxi|dress|连衣裙|长裙/i],
+    ['hoodie', /hoodie|连帽/i], ['sweatshirt', /sweatshirt|卫衣/i], ['polo', /polo/i], ['crop', /crop|短版/i], ['blouse', /blouse|雪纺/i],
+    ['tank', /tank|camisole|vest|背心|吊带/i], ['knit', /knit|sweater|jumper|针织|毛衣/i], ['tee', /\btee\b|t-shirt|tshirt|T恤/i], ['shirt', /shirt|衬衫/i],
+    ['jumpsuit', /jumpsuit|连体裤|连身裤/i], ['playsuit', /playsuit|romper|连体短裤/i], ['qipao', /qipao|cheongsam|旗袍/i], ['kurung', /kurung|巴汝加兰/i], ['kebaya', /kebaya|可峇雅|娘惹/i],
+    ['shirtdress', /shirt ?dress|衬衫裙/i], ['maxi', /maxi|长裙/i], ['mini', /mini|短裙/i], ['midi', /midi|dress|连衣裙/i],
   ];
   function inferType(cat, name) {
     for (const [t, re] of TYPE_WORDS) if (TYPES[cat].includes(t) && re.test(name)) return t;
@@ -548,7 +622,7 @@
   }
   function nextId(state, cat) {
     state.counters = state.counters || {};
-    const prefix = { Top: 'T', Bottom: 'B', Dress: 'D', Outerwear: 'O', Shoes: 'S', Bag: 'G', Jewelry: 'J' }[cat];
+    const prefix = { Top: 'T', Bottom: 'B', Dress: 'D', Outerwear: 'O', Shoes: 'S', Bag: 'G', Jewelry: 'J', Hat: 'H', Scarf: 'F', Belt: 'L', Eyewear: 'E', Watch: 'W' }[cat];
     let n = state.counters[cat] || 0;
     let id;
     do { n++; id = prefix + String(n).padStart(3, '0'); } while (state.items.some((i) => i.id === id));
@@ -566,7 +640,7 @@
     const col = (...keys) => head.findIndex((h) => keys.some((k) => h.startsWith(k)));
     const ix = {
       id: col('item id', 'id', '编号'), cat: col('category', '类别'), name: col('name (en)', 'name'), zh: col('名称'), color: col('color', 'colour', '颜色'),
-      occ: col('occasions', '场合'), wx: col('weather', '天气'),
+      occ: col('occasions', '场合'), wx: col('weather', '天气'), type: col('type', '种类'), style: col('style tags', '风格'), custom: col('custom kind', '自定义种类'),
     };
     if (ix.cat < 0 || (ix.name < 0 && ix.zh < 0)) return { items: [], skipped: 0, error: 'columns' };
     const items = [], seen = new Set(state.items.map((i) => i.id));
@@ -583,10 +657,14 @@
       seen.add(id);
       const occasions = [...new Set(splitList(ix.occ >= 0 ? row[ix.occ] : '').map((x) => OCC_ALIASES[x.toLowerCase()] || OCC_ALIASES[x]).filter(Boolean))];
       const weather = [...new Set(splitList(ix.wx >= 0 ? row[ix.wx] : '').map((x) => WX_ALIASES[x.toLowerCase()] || WX_ALIASES[x]).filter(Boolean))];
-      const type = inferType(cat, name + ' ' + zh), color = colorFromName(ix.color >= 0 ? row[ix.color] : '') || '#9AA0A6';
+      const typeCell = String(ix.type >= 0 ? row[ix.type] || '' : '').trim().toLowerCase();
+      const styleCell = String(ix.style >= 0 ? row[ix.style] || '' : '').trim().toLowerCase();
+      const type = TYPES[cat].includes(typeCell) ? typeCell : TYPES[cat].includes(styleCell) ? styleCell : inferType(cat, name + ' ' + zh);
+      const custom = String(ix.custom >= 0 ? row[ix.custom] || '' : '').trim();
+      const color = colorFromName(ix.color >= 0 ? row[ix.color] : '') || '#9AA0A6';
       const at = autoTags(cat, type, color);
       const it = {
-        id, cat, type, name: name || zh, nameZh: zh, color,
+        id, cat, type, name: name || zh, nameZh: zh, color, ...(custom ? { custom } : {}),
         occasions: occasions.length ? occasions : at.occasions, weather: weather.length ? weather : at.weather, laundry: false, addedAt: Date.now(),
       };
       items.push(it); tmp.items.push(it);
@@ -596,15 +674,15 @@
   function wardrobeCSV(state) {
     const lbl = { hot_humid: 'Hot & Humid', hot_sunny: 'Hot & Sunny', rainy: 'Rainy', aircon: 'Air-con / Cool', cool: 'Cool (Highlands)' };
     const occ = { ClientVisit: 'Client Visit' };
-    const rows = [['Item ID', 'Category', 'Name (EN)', '名称 (中文)', 'Color', 'Style tags', 'Occasions', 'Weather', 'Photo file']];
+    const rows = [['Item ID', 'Category', 'Name (EN)', '名称 (中文)', 'Color', 'Style tags', 'Occasions', 'Weather', 'Photo file', 'Type', 'Custom kind']];
     for (const i of state.items)
-      rows.push([i.id, i.cat, i.name, i.nameZh || '', i.color, i.type, (i.occasions || []).map((o) => occ[o] || o).join(', '), (i.weather || []).map((w) => lbl[w]).join(', '), '']);
+      rows.push([i.id, i.cat, i.name, i.nameZh || '', i.color, '', (i.occasions || []).map((o) => occ[o] || o).join(', '), (i.weather || []).map((w) => lbl[w]).join(', '), '', i.type, i.custom || '']);
     return toCSV(rows);
   }
 
   Object.assign(OF, {
     engine: {
-      CATEGORIES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
+      CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
       minFeasibleN, inferType, relevant, autoTags, colorKey, applyFeedback, occasionFromText, FESTIVAL_COLORS,
     },

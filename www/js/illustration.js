@@ -54,7 +54,15 @@
   function shortSleeves(c) {
     return `<path d="M398 382 L366 394 L350 472 L386 480 L402 426 Z" fill="${c}"/><path d="M${M(398)} 382 L${M(366)} 394 L${M(350)} 472 L${M(386)} 480 L${M(402)} 426 Z" fill="${c}"/>`;
   }
+  /** new kinds are drawn with the closest base shape */
+  const SHAPE = { polo: 'shirt', blouse: 'shirt', sweatshirt: 'knit', hoodie: 'knit', crop: 'tee',
+    overalls: 'trousers', wideleg: 'trousers', joggers: 'trousers', leggings: 'trousers', cargo: 'trousers', culottes: 'trousers', maxiskirt: 'skirt',
+    maxi: 'midi', shirtdress: 'midi', qipao: 'midi', kurung: 'midi', kebaya: 'midi',
+    denim: 'jacket', puffer: 'jacket', sunshield: 'jacket', kimono: 'cardigan',
+    loafers: 'flats', boots: 'flats', slides: 'sandals', wedges: 'heels', crossbody: 'shoulder', handbag: 'tote', clutch: 'tote', beltbag: 'shoulder' };
+  const shp = (t) => SHAPE[t] || t;
   function top(type, c) {
+    type = shp(type);
     const d = shade(c, -0.14), l = shade(c, 0.18);
     const body = `<path d="M396 380 Q450 406 504 380 L518 562 L382 562 Z" fill="${c}"/>`;
     switch (type) {
@@ -76,6 +84,7 @@
     }
   }
   function bottom(type, c) {
+    type = shp(type);
     const d = shade(c, -0.14);
     const band = `<rect x="390" y="540" width="120" height="16" fill="${d}"/>`;
     switch (type) {
@@ -92,6 +101,7 @@
     }
   }
   function dress(type, c) {
+    type = shp(type);
     const d = shade(c, -0.16), l = shade(c, 0.16);
     const hem = type === 'mini' ? 700 : 832;
     const flare = type === 'mini' ? 540 : 556;
@@ -100,6 +110,7 @@
       `<path d="M450 440 L500 556 L462 560 Z" fill="${l}" opacity=".7"/>`;
   }
   function outer(type, c) {
+    type = shp(type);
     const d = shade(c, -0.14), l = shade(c, 0.1);
     const hem = type === 'jacket' ? 600 : type === 'cardigan' ? 700 : 650;
     const sleeve = `<path d="M376 384 L406 382 L402 480 L368 638 L328 630 Q324 500 362 408 Z" fill="${c}"/><path d="M${M(376)} 384 L${M(406)} 382 L${M(402)} 480 L${M(368)} 638 L${M(328)} 630 Q${M(324)} 500 ${M(362)} 408 Z" fill="${c}"/>`;
@@ -117,6 +128,7 @@
       `<circle cx="${436}" cy="560" r="3" fill="${l}"/><circle cx="${M(436)}" cy="560" r="3" fill="${l}"/>`;
   }
   function foot(type, c, mirror) {
+    type = shp(type);
     const X = (x) => (mirror ? M(x) : x);
     const d = shade(c, -0.22);
     const P = (arr) => arr.map(([x, y], i) => (i ? 'L' : 'M') + X(x) + ' ' + y).join(' ') + ' Z';
@@ -141,7 +153,7 @@
   function bag(it) {
     if (!it) return { back: '', front: '' };
     const c = it.color, d = shade(c, -0.18), hand = '';
-    switch (it.type) {
+    switch (shp(it.type)) {
       case 'shoulder':
         return {
           back: '',
@@ -201,7 +213,9 @@
     const bodyArms = `<path d="M368 392 Q338 520 332 640 L352 646 Q372 530 392 440 Z" fill="${skin}"/><path d="M532 392 Q562 520 568 640 L548 646 Q528 530 508 440 Z" fill="${skin}"/><circle cx="342" cy="648" r="12" fill="${skin}"/><circle cx="558" cy="648" r="12" fill="${skin}"/>`;
     const legs = `<path d="M404 650 L450 650 L448 760 L436 1040 L406 1040 Z" fill="${skin}"/><path d="M450 650 L496 650 L494 1040 L464 1040 L452 760 Z" fill="${skin}"/>`;
     const torsoBase = `<path d="M396 378 Q450 404 504 378 L514 560 L386 560 Z" fill="${skin}"/>`;
-    const garments = (parts.Dress ? dress(parts.Dress.type, parts.Dress.color) : (parts.Bottom ? bottom(parts.Bottom.type, parts.Bottom.color) : '') + (parts.Top ? top(parts.Top.type, parts.Top.color) : '')) +
+    const bib = (c) => `<path d="M414 472 L486 472 L490 552 L410 552 Z" fill="${c}"/><path d="M420 472 L424 396 L432 396 L428 472 Z" fill="${c}"/><path d="M480 472 L476 396 L468 396 L472 472 Z" fill="${c}"/>`;
+    const one = (d) => d.type === 'jumpsuit' ? bottom('trousers', d.color) + top('tank', d.color) : d.type === 'playsuit' ? bottom('shorts', d.color) + top('tank', d.color) : dress(d.type, d.color);
+    const garments = (parts.Dress ? one(parts.Dress) : (parts.Bottom ? bottom(parts.Bottom.type, parts.Bottom.color) : '') + (parts.Top ? top(parts.Top.type, parts.Top.color) : '') + (parts.Bottom && parts.Bottom.type === 'overalls' ? bib(parts.Bottom.color) : '')) +
       (parts.Outerwear ? outer(parts.Outerwear.type, parts.Outerwear.color) : '');
     const label = opts.label ? ` aria-label="${String(opts.label).replace(/"/g, '&quot;')}"` : '';
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="250 130 400 970" role="img"${label} preserveAspectRatio="xMidYMid meet">` +

@@ -9,7 +9,7 @@
   let S = null;            // persisted state
   let photos = {};         // item id -> data URL
   let installEvt = null;
-  const ui = {
+  const ui = { newkind: null,
     tab: 'today', occasion: 'Business', wxOverride: null, aircon: true, airconTouched: false,
     weather: null, wxStatus: 'idle', result: null, worn: null, filter: 'All', sheet: null, dialog: null, zoom: null,
     event: '', evMsg: '', festival: '', fbOpen: null, exclude: [], batch: null, selfie: null,
@@ -53,6 +53,7 @@
     out.items = Array.isArray(st.items) ? st.items : [];
     out.log = Array.isArray(st.log) ? st.log : [];
     out.counters = st.counters || {};
+    out.customTypes = Array.isArray(st.customTypes) ? st.customTypes.filter((k) => k && k.id && k.cat && k.base && k.label) : [];
     out.feedback = { item: Object.assign({}, st.feedback && st.feedback.item), color: Object.assign({}, st.feedback && st.feedback.color) };
     if (st.onboarded == null) out.onboarded = out.items.length > 0 || out.log.length > 0;
     return out;
@@ -151,32 +152,48 @@
     return h + `<p class="muted small center">${esc(t('today.zoom'))}</p>`;
   }
 
+  /* ---- kinds: built-in plus the user's own */
+  const typeText = (it) => it.custom || t('type.' + it.type);
+  function kindList(c) {
+    return E.TYPES[c].map((x) => ({ key: x, base: x, label: t('type.' + x), custom: false }))
+      .concat((S.customTypes || []).filter((k) => k.cat === c).map((k) => ({ key: 'c:' + k.id, base: k.base, label: k.label, custom: true })));
+  }
+  const kindChips = (c, isOn, act) => kindList(c).map((k) => chip(k.label, isOn(k), act, { c, v: k.key })).join('') + chip(t('kind.add'), false, 'newkind', { c });
+  function resolveKind(c, v) {
+    if (String(v).startsWith('c:')) { const k = (S.customTypes || []).find((x) => 'c:' + x.id === v); if (k) return { type: k.base, custom: k.label }; }
+    return { type: E.TYPES[c].includes(v) ? v : E.TYPES[c][0], custom: '' };
+  }
+
   /* ---- flat-lay: the user's own photos arranged as an outfit board */
   function viewMode() { return S.profile.view || (Object.keys(photos).length ? 'photos' : 'illus'); }
   function flatlay(parts, label) {
-    const W = 300, H = 400, G = 8, LW = 184, RX = LW + 2 * G, RW = W - RX - G;
+    const W = 300, G = 8, LW = 184, RX = LW + 2 * G, RW = W - RX - G;
+    const acc = E.ACCESSORIES.map((c) => parts[c]).filter(Boolean);
+    const H = 400, SH = acc.length ? 70 : 0, TH = H + (SH ? SH + G : 0);
     const tile = (it, x, y, w, h) => {
       const r = 14, ph = photos[it.id], cid = 'c' + it.id.replace(/\W/g, '') + Math.round(x) + Math.round(y);
       const bg = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" style="fill:var(--chip)"/>`;
       if (ph) return `${bg}<clipPath id="${cid}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/></clipPath><image href="${ph}" x="${x + 6}" y="${y + 6}" width="${w - 12}" height="${h - 12}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${cid})"/>`;
       const c = it.color;
-      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${esc(c)}"/><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="13" fill="${inkOn(c)}" font-family="system-ui,sans-serif">${esc(t('type.' + it.type))}</text>`;
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${esc(c)}"/><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="${w < 100 ? 10 : 13}" fill="${inkOn(c)}" font-family="system-ui,sans-serif">${esc(typeText(it))}</text>`;
     };
     let out = '';
-    // left column: dress, or top over bottom
     if (parts.Dress) out += tile(parts.Dress, G, G, LW, H - 2 * G);
     else {
       const a = parts.Top, b = parts.Bottom;
       if (a && b) { const hh = Math.round((H - 3 * G) * 0.46); out += tile(a, G, G, LW, hh) + tile(b, G, 2 * G + hh, LW, H - 3 * G - hh); }
       else if (a || b) out += tile(a || b, G, G, LW, H - 2 * G);
     }
-    // right column: layer, shoes, bag, jewelry
     const right = ['Outerwear', 'Shoes', 'Bag', 'Jewelry'].map((c) => parts[c]).filter(Boolean);
     if (right.length) {
       const hh = (H - G * (right.length + 1)) / right.length;
       right.forEach((it, k) => { out += tile(it, RX, G + k * (hh + G), RW, hh); });
     }
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label || '')}" preserveAspectRatio="xMidYMid meet">${out}</svg>`;
+    if (acc.length) {                       // hat, scarf, belt, eyewear, watch along the bottom
+      const n = acc.length, w = (W - G * (n + 1)) / n;
+      acc.forEach((it, k) => { out += tile(it, G + k * (w + G), H + G - 4, w, SH); });
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${TH}" role="img" aria-label="${esc(label || '')}" preserveAspectRatio="xMidYMid meet">${out}</svg>`;
   }
   function lookPicture(l, i) {
     const label = t('today.look', { n: i + 1 });
@@ -216,11 +233,11 @@
     const list = S.items.filter((i) => ui.filter === 'All' || i.cat === ui.filter)
       .sort((a, b) => E.CATEGORIES.indexOf(a.cat) - E.CATEGORIES.indexOf(b.cat) || nm(a).localeCompare(nm(b)));
     const rows = list.map((it) => `<div class="item" data-act="edit" data-id="${esc(it.id)}" role="button" tabindex="0">${thumb(it)}
-      <div class="grow"><b>${esc(nm(it))}</b><div class="muted small">${esc(t('cat.' + it.cat))} · ${esc(t('type.' + it.type))} · ${esc(it.id)}</div>${badge(it)}</div>
+      <div class="grow"><b>${esc(nm(it))}</b><div class="muted small">${esc(t('cat.' + it.cat))} · ${esc(typeText(it))} · ${esc(it.id)}</div>${badge(it)}</div>
       <button class="btn small ghost" data-act="laundry" data-id="${esc(it.id)}" aria-pressed="${!!it.laundry}">${esc(t('wardrobe.laundry'))}${it.laundry ? ' ✓' : ''}</button></div>`).join('');
     return `<section class="card"><div class="row wrap"><button class="btn primary" data-act="add">${esc(t('wardrobe.add'))}</button><button class="btn" data-act="pick-many">${esc(t('wardrobe.addMany'))}</button>
-      <button class="btn" data-act="pick-csv">${esc(t('wardrobe.importCsv'))}</button><button class="btn" data-act="demo">${esc(t('wardrobe.demo'))}</button></div>
-      <input type="file" id="fileCsv" accept=".csv,text/csv,text/plain" hidden><input type="file" id="fileMany" accept="image/*" multiple hidden>
+      <button class="btn" data-act="pick-csv">${esc(t('wardrobe.importCsv'))}</button><button class="btn" data-act="export-csv">${esc(t('wardrobe.exportCsv'))}</button><button class="btn" data-act="demo">${esc(t('wardrobe.demo'))}</button></div>
+      <input type="file" id="fileCsv" hidden><input type="file" id="fileMany" accept="image/*" multiple hidden>
       <p class="muted small">${esc(t('wardrobe.count', { n: S.items.length }))} · ${esc(t('wardrobe.limit'))}</p>
       <div class="chips">${chips}</div></section>
       ${rows ? `<section class="list">${rows}</section>` : `<p class="muted center">${esc(t('wardrobe.empty'))}</p>`}`;
@@ -243,7 +260,7 @@
   function viewGaps() {
     const m = E.gapMatrix(S), min = S.settings.minItems;
     const head = `<tr><th></th>${E.OCCASIONS.map((o) => `<th><span>${esc(occShort(o))}</span></th>`).join('')}</tr>`;
-    const body = E.CATEGORIES.map((c) => `<tr><th class="rowh">${esc(t('catp.' + c))}</th>${E.OCCASIONS.map((o) => (E.relevant(c, o) ? `<td class="${m[c][o] < min ? 'low' : 'okc'}">${m[c][o]}</td>` : `<td class="na">–</td>`)).join('')}</tr>`).join('');
+    const body = E.CORE_CATS.map((c) => `<tr><th class="rowh">${esc(t('catp.' + c))}</th>${E.OCCASIONS.map((o) => (E.relevant(c, o) ? `<td class="${m[c][o] < min ? 'low' : 'okc'}">${m[c][o]}</td>` : `<td class="na">–</td>`)).join('')}</tr>`).join('');
     const sug = E.suggestions(S, 5);
     const lines = sug.map((x) => {
       const occ = x.occasions.map(occShort).join(' / ');
@@ -274,14 +291,15 @@
         <label class="check"><input type="checkbox" data-bind="removeBg" ${p.removeBg ? 'checked' : ''}> <span>${esc(t('settings.removeBg'))}</span></label>
         <button class="btn block" data-act="selfie" style="margin-top:8px">${esc(t('settings.selfie'))}</button><input type="file" id="fileSelfie" accept="image/*" hidden>
         <p class="muted small">${esc(t('settings.fbInfo'))}</p><button class="btn block" data-act="fb-reset">${esc(t('settings.fbReset'))}</button></section>
+      <section class="card"><h2>${esc(t('custom.mine'))}</h2>${S.customTypes.length ? `<div class="tags">${S.customTypes.map((k) => `<span class="tag">${esc(k.label)} <span class="muted small">(${esc(t('type.' + k.base))})</span><button class="btn small ghost" data-act="ct-del" data-id="${esc(k.id)}" aria-label="${esc(t('custom.del'))}">✕</button></span>`).join('')}</div>` : `<p class="muted small">${esc(t('custom.none'))}</p>`}</section>
       <section class="card"><h2>${esc(t('settings.rules'))}</h2>
         <label class="lbl" for="nIn">${esc(t('settings.n'))}</label><input id="nIn" type="number" inputmode="numeric" min="0" max="60" value="${S.settings.n}" data-bind="n">
         <label class="lbl">${esc(t('settings.apply'))}</label><div class="checks">${rules}</div>
         <label class="lbl" for="minIn">${esc(t('settings.min'))}</label><input id="minIn" type="number" inputmode="numeric" min="1" max="20" value="${S.settings.minItems}" data-bind="min"></section>
       <section class="card"><h2>${esc(t('settings.data'))}</h2><div class="stack">
-        <button class="btn block" data-act="export-json">${esc(t('settings.exportJson'))}</button>
-        <button class="btn block" data-act="export-csv">${esc(t('settings.exportCsv'))}</button>
-        <button class="btn block" data-act="pick-json">${esc(t('settings.importJson'))}</button><input type="file" id="fileJson" accept=".json,application/json" hidden>
+        <button class="btn block" data-act="export-json">${esc(t('settings.exportJson'))}</button><p class="muted small" style="margin:0">${esc(t('export.jsonHelp'))}</p>
+        <button class="btn block" data-act="export-csv">${esc(t('settings.exportCsv'))}</button><p class="muted small" style="margin:0">${esc(t('export.csvHelp'))}</p>
+        <button class="btn block" data-act="pick-json">${esc(t('settings.importJson'))}</button><input type="file" id="fileJson" hidden>
         <button class="btn block danger" data-act="reset">${esc(t('settings.reset'))}</button></div>
         <p class="muted small">${esc(t('settings.privacy'))}</p>${OF.store.isMemory() ? '<p class="note small">Storage is unavailable in this browser mode: data will be lost when you close the page.</p>' : ''}</section>
       <section class="card">${install}<p class="muted small">${esc(t('settings.about'))}</p></section>`;
@@ -292,8 +310,8 @@
     const it = id ? byId(id) : null;
     ui.sheet = {
       id: it ? it.id : null, photo: it ? photos[it.id] || null : null, photoChanged: false, colorAuto: false,
-      draft: it ? { cat: it.cat, type: it.type, name: it.name, nameZh: it.nameZh || '', color: it.color, occasions: (it.occasions || []).slice(), weather: (it.weather || []).slice(), laundry: !!it.laundry }
-        : { cat: null, type: null, name: '', nameZh: '', color: '#1E1E20', occasions: [], weather: [], laundry: false },
+      draft: it ? { cat: it.cat, type: it.type, custom: it.custom || '', name: it.name, nameZh: it.nameZh || '', color: it.color, occasions: (it.occasions || []).slice(), weather: (it.weather || []).slice(), laundry: !!it.laundry }
+        : { cat: null, type: null, custom: '', name: '', nameZh: '', color: '#1E1E20', occasions: [], weather: [], laundry: false },
       tagsTouched: !!it, fineOpen: false,
     };
     renderSheet();
@@ -318,7 +336,7 @@
       <input type="file" id="fileCam" accept="image/*" capture="environment" hidden><input type="file" id="fileGal" accept="image/*" hidden>
       ${sh.colorAuto ? `<p class="muted small">${esc(t('sheet.colorAuto'))}</p>` : ''}
       <label class="lbl">${esc(t('sheet.kind'))}</label>
-      ${E.CATEGORIES.map((c) => `<div class="kgroup"><span class="klabel">${esc(t('cat.' + c))}</span><div class="chips">${E.TYPES[c].map((x) => chip(t('type.' + x), d.cat === c && d.type === x, 'kind', { c, v: x })).join('')}</div></div>`).join('')}
+      ${E.CATEGORIES.map((c) => `<div class="kgroup"><span class="klabel">${esc(t('cat.' + c))}</span><div class="chips">${kindChips(c, (k) => d.cat === c && (k.custom ? d.custom === k.label : !d.custom && d.type === k.base), 'kind')}</div></div>`).join('')}
       <label class="lbl" for="f-name">${esc(t('sheet.nameHint'))}</label><input id="f-name" type="text" value="${esc(d.name)}" maxlength="60" autocomplete="off">
       <label class="lbl" for="f-zh">${esc(t('sheet.nameZh'))}</label><input id="f-zh" type="text" value="${esc(d.nameZh)}" maxlength="40" autocomplete="off">
       <label class="lbl" for="f-color">${esc(t('sheet.color'))}</label>
@@ -333,7 +351,7 @@
   }
   /** "Black shirt" / "黑色衬衫" from the colour and the kind of item */
   function autoName(lang, d) {
-    const col = OF.tIn(lang, 'color.' + E.colorKey(d.color)), ty = OF.tIn(lang, 'type.' + d.type);
+    const col = OF.tIn(lang, 'color.' + E.colorKey(d.color)), ty = d.custom || OF.tIn(lang, 'type.' + d.type);
     return lang === 'zh' ? col + ty : col.charAt(0).toUpperCase() + col.slice(1) + ' ' + ty.toLowerCase();
   }
   function saveSheet() {
@@ -346,6 +364,7 @@
     if (sh.id) it = byId(sh.id);
     else { it = { id: E.nextId(S, d.cat), addedAt: Date.now() }; S.items.push(it); }
     if (sh.id && it.cat !== d.cat) { /* category changed: keep id stable */ }
+    if (d.custom) it.custom = d.custom; else delete it.custom;
     Object.assign(it, { cat: d.cat, type: d.type, name: d.name.trim() || d.nameZh.trim(), nameZh: d.nameZh.trim(), color: d.color, occasions: d.occasions, weather: d.weather, laundry: d.laundry });
     if (sh.photoChanged && sh.photo) { photos[it.id] = sh.photo; OF.store.putPhoto(it.id, sh.photo); }
     save(); ui.sheet = null; resetResults(); renderSheet(); render(); toast(t('toast.saved'));
@@ -443,7 +462,7 @@
       if (ui.batch !== b) return;      // cancelled
       try {
         const cur = await readPhoto(f, S.profile.removeBg);
-        b.entries.push({ name: f.name, cur, match: matchItem(f), cat: null, type: null, sel: false });
+        b.entries.push({ name: f.name, cur, match: matchItem(f), cat: null, type: null, custom: '', sel: false });
       } catch (e) { b.failed++; }
       b.loaded++;
       if (b.loaded % 4 === 0 || b.loaded === b.total) renderBatch();
@@ -452,7 +471,7 @@
   }
   const bAssigned = (e) => !!(e.match || e.type);
   function cellHtml(e, i) {
-    const label = e.match ? '→ ' + e.match : e.type ? t('type.' + e.type) : '?';
+    const label = e.match ? '→ ' + e.match : e.type ? (e.custom || t('type.' + e.type)) : '?';
     return `<button type="button" class="bcell${e.sel ? ' sel' : ''}${bAssigned(e) ? ' done' : ''}" data-act="bcell" data-i="${i}" id="bc-${i}" aria-pressed="${e.sel}"><img src="${e.cur.dataUrl}" alt=""><span class="bl">${esc(label)}</span></button>`;
   }
   function batchCounts() {
@@ -469,7 +488,6 @@
     const root = $('sheet-root'), b = ui.batch;
     if (!b) { if (!ui.sheet) root.innerHTML = ''; return; }
     const loading = b.loaded < b.total;
-    const types = E.TYPES[b.cat] || [];
     root.innerHTML = `<div class="overlay"><div class="sheet batch" role="dialog" aria-modal="true">
       <div class="row between"><h2>${esc(t('batch.title'))}</h2><button class="btn small ghost" data-act="batch-stop">${esc(t('common.close'))}</button></div>
       ${loading ? `<p class="muted small">${esc(t('batch.loading', { i: b.loaded, n: b.total }))}</p>` : `<p class="muted small">${esc(t('batch.hint'))}</p>`}
@@ -478,7 +496,7 @@
       <p class="small muted" id="binfo"></p>
       <div class="bgrid">${b.entries.map(cellHtml).join('')}</div>
       <div class="bbar"><div class="chips">${E.CATEGORIES.map((c) => chip(t('cat.' + c), b.cat === c, 'bcat', { c })).join('')}</div>
-      <div class="chips">${types.map((x) => chip(t('type.' + x), false, 'bkind', { c: b.cat, v: x })).join('')}</div>
+      <div class="chips">${kindList(b.cat).map((k) => chip(k.label, false, 'bkind', { c: b.cat, v: k.key })).join('')}${chip(t('kind.add'), false, 'newkind', { c: b.cat })}</div>
       <button class="btn primary block" id="bsave" data-act="bsave">${esc(t('batch.save', { n: 0 }))}</button></div></div></div>`;
     refreshBatchBar();
   }
@@ -489,7 +507,7 @@
   function bSelect(fn) { ui.batch.entries.forEach((e, i) => { const v = fn(e); if (v !== e.sel) { e.sel = v; bUpdateCell(i); } }); refreshBatchBar(); }
   function bAssign(cat, type) {
     const b = ui.batch; let any = false;
-    b.entries.forEach((e, i) => { if (e.sel) { e.cat = cat; e.type = type; e.sel = false; any = true; bUpdateCell(i); } });
+    b.entries.forEach((e, i) => { if (e.sel) { const k = resolveKind(cat, type); e.cat = cat; e.type = k.type; e.custom = k.custom; e.sel = false; any = true; bUpdateCell(i); } });
     if (!any) { toast(t('batch.pick')); return; }
     refreshBatchBar();
   }
@@ -505,8 +523,8 @@
         const it = byId(e.match);
         if (it) { photos[it.id] = e.cur.dataUrl; Promise.resolve(OF.store.putPhoto(it.id, e.cur.dataUrl)).catch(() => toast(t('batch.err', { m: 'storage' }))); attached++; }
       } else if (e.type) {
-        const d = { cat: e.cat, type: e.type, color: e.cur.color }, a = E.autoTags(e.cat, e.type, d.color);
-        const it = { id: E.nextId(S, e.cat), addedAt: Date.now(), cat: e.cat, type: e.type, name: autoName('en', d), nameZh: autoName('zh', d), color: d.color, occasions: a.occasions, weather: a.weather, laundry: false };
+        const d = { cat: e.cat, type: e.type, custom: e.custom, color: e.cur.color }, a = E.autoTags(e.cat, e.type, d.color);
+        const it = { id: E.nextId(S, e.cat), addedAt: Date.now(), cat: e.cat, type: e.type, ...(e.custom ? { custom: e.custom } : {}), name: autoName('en', d), nameZh: autoName('zh', d), color: d.color, occasions: a.occasions, weather: a.weather, laundry: false };
         S.items.push(it); photos[it.id] = e.cur.dataUrl; Promise.resolve(OF.store.putPhoto(it.id, e.cur.dataUrl)).catch(() => toast(t('batch.err', { m: 'storage' }))); added++;
       }
     });
@@ -572,6 +590,13 @@
     if (ui.zoom != null && ui.result && ui.result.looks[ui.zoom]) {
       const l = ui.result.looks[ui.zoom];
       root.innerHTML = `<div class="overlay" data-act="zoom-close"><div class="zoom${viewMode() === 'photos' ? ' flatz' : ''}">${viewMode() === 'photos' ? flatlay(l.parts, '') : I.render(S.profile, l.parts, l.groom)}<button class="btn" data-act="zoom-close">${esc(t('common.close'))}</button></div></div>`;
+    } else if (ui.newkind) {
+      const n = ui.newkind;
+      root.innerHTML = `<div class="overlay"><div class="sheet small-sheet" role="dialog" aria-modal="true"><h2>${esc(t('custom.title'))}</h2>
+        <label class="lbl" for="nk-name">${esc(t('custom.name'))}</label><input id="nk-name" type="text" maxlength="40" value="${esc(n.name)}" autocomplete="off">
+        <label class="lbl">${esc(t('custom.cat'))}</label><div class="chips">${E.CATEGORIES.map((c) => chip(t('cat.' + c), n.cat === c, 'nk-cat', { c })).join('')}</div>
+        <label class="lbl">${esc(t('custom.base'))}</label><div class="chips">${E.TYPES[n.cat].map((x) => chip(t('type.' + x), n.base === x, 'nk-base', { v: x })).join('')}</div>
+        <div class="row end"><button class="btn" data-act="nk-cancel">${esc(t('common.cancel'))}</button><button class="btn primary" data-act="nk-save">${esc(t('custom.save'))}</button></div></div></div>`;
     } else if (ui.dialog) {
       root.innerHTML = `<div class="overlay"><div class="sheet small-sheet" role="alertdialog"><p>${esc(ui.dialog.msg)}</p><div class="row end"><button class="btn" data-act="dlg-no">${esc(t('common.no'))}</button><button class="btn danger" data-act="dlg-yes">${esc(t('common.yes'))}</button></div></div></div>`;
     } else root.innerHTML = '';
@@ -621,17 +646,62 @@
     const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
-  async function importCsv(file) {
+  function capPlugin(name) {
+    const C = window.Capacitor; if (!C) return null;
+    try { return (C.Plugins && C.Plugins[name]) || (C.registerPlugin ? C.registerPlugin(name) : null); } catch (e) { return null; }
+  }
+  /** Android app: write to the cache folder and open the share sheet (Drive, WhatsApp, Files...). Browser: share sheet or plain download. */
+  async function shareFile(name, mime, text) {
+    const C = window.Capacitor, FS = capPlugin('Filesystem'), SH = capPlugin('Share');
+    if (C && C.isNativePlatform && C.isNativePlatform() && FS && SH) {
+      try {
+        const CH = 900000; let i = 0, first = true;
+        while (first || i < text.length) {
+          let j = Math.min(text.length, i + CH);
+          const cc = text.charCodeAt(j - 1); if (j < text.length && cc >= 0xd800 && cc <= 0xdbff) j--;   // do not split a surrogate pair
+          const part = text.slice(i, j);
+          if (first) { await FS.writeFile({ path: name, data: part, directory: 'CACHE', encoding: 'utf8' }); first = false; }
+          else await FS.appendFile({ path: name, data: part, directory: 'CACHE', encoding: 'utf8' });
+          i = j;
+        }
+        const { uri } = await FS.getUri({ path: name, directory: 'CACHE' });
+        await SH.share({ title: name, dialogTitle: name, url: uri });
+        return;
+      } catch (e) {
+        if (/cancel/i.test(String((e && e.message) || e))) return;
+        toast(t('toast.exportFail', { m: String((e && e.message) || e).slice(0, 80) }));
+      }
+    }
+    try {
+      if (navigator.canShare && typeof File === 'function') {
+        const f = new File([text], name, { type: mime });
+        if (navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; }
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    download(name, mime, text); toast(t('toast.exported', { f: name }));
+  }
+  const stamp = () => new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+  /** one entry point for both files: a backup (JSON) or the wardrobe list (CSV) */
+  async function importAny(file) {
     if (!file) return;
-    const r = E.importCSV(S, await file.text());
+    const text = await file.text();
+    if (text.replace(/^\uFEFF/, '').trim().startsWith('{')) return importJson(text);
+    importCsv(text);
+  }
+  function importCsv(text) {
+    const r = E.importCSV(S, text);
     if (r.error) return toast(t('toast.importFail'));
-    S.items.push(...r.items); S.counters = r.counters; save(); resetResults(); render();
+    S.items.push(...r.items); S.counters = r.counters;
+    r.items.forEach((it) => {            // own kinds travel inside the CSV, so the new phone needs no set-up
+      if (it.custom && !S.customTypes.some((k) => k.cat === it.cat && k.label === it.custom)) S.customTypes.push({ id: 'c' + Math.random().toString(36).slice(2, 8), cat: it.cat, base: it.type, label: it.custom });
+    });
+    save(); resetResults(); render();
     toast(t('toast.imported', { n: r.items.length, s: r.skipped }));
   }
-  async function importJson(file) {
-    if (!file) return;
+  function importJson(text) {
     let obj;
-    try { obj = JSON.parse(await file.text()); } catch (e) { return toast(t('toast.badBackup')); }
+    try { obj = JSON.parse(text); } catch (e) { return toast(t('toast.badBackup')); }
     if (!obj || obj.app !== 'daily-outfit' || !obj.state || !Array.isArray(obj.state.items)) return toast(t('toast.badBackup'));
     ask(t('confirm.restore'), async () => {
       await OF.store.clear();
@@ -652,6 +722,22 @@
     if (act === 'zoom-close' && e.target !== el && !e.target.closest('button.btn')) return;
     const D = el.dataset;
     switch (act) {
+      case 'newkind': ui.newkind = { cat: D.c, base: E.TYPES[D.c][0], name: '' }; renderDialog(); break;
+      case 'nk-cat': ui.newkind.name = $('nk-name').value; ui.newkind.cat = D.c; ui.newkind.base = E.TYPES[D.c][0]; renderDialog(); break;
+      case 'nk-base': ui.newkind.name = $('nk-name').value; ui.newkind.base = D.v; renderDialog(); break;
+      case 'nk-cancel': ui.newkind = null; renderDialog(); break;
+      case 'nk-save': {
+        const n = ui.newkind, label = ($('nk-name').value || '').trim();
+        if (!label) { toast(t('custom.needName')); break; }
+        let k = S.customTypes.find((x) => x.cat === n.cat && x.label.toLowerCase() === label.toLowerCase());
+        if (!k) { k = { id: 'c' + Math.random().toString(36).slice(2, 8), cat: n.cat, base: n.base, label }; S.customTypes.push(k); }
+        ui.newkind = null; renderDialog(); save();
+        if (ui.sheet) { readDraft(); const d = ui.sheet.draft; d.cat = k.cat; d.type = k.base; d.custom = k.label; if (!ui.sheet.tagsTouched) { const a = E.autoTags(d.cat, d.type, d.color); d.occasions = a.occasions; d.weather = a.weather; } renderSheet(); }
+        else if (ui.batch) { ui.batch.cat = k.cat; if (ui.batch.entries.some((e) => e.sel)) bAssign(k.cat, 'c:' + k.id); renderBatch(); }
+        else render();
+        break;
+      }
+      case 'ct-del': S.customTypes = S.customTypes.filter((k) => k.id !== D.id); save(); render(); break;
       case 'onb-n': S.settings.n = +D.v; save(); render(); break;
       case 'onb-modest': S.profile.modest = D.v === '1'; save(); render(); break;
       case 'onb-done': S.onboarded = true; save(); render(); break;
@@ -718,7 +804,7 @@
         save(); ui.sheet = null; renderSheet(); resetResults(); render(); toast(t('toast.deleted'));
       }); break;
       case 'kind': {
-        readDraft(); const d = ui.sheet.draft; d.cat = D.c; d.type = D.v;
+        readDraft(); const d = ui.sheet.draft; const k = resolveKind(D.c, D.v); d.cat = D.c; d.type = k.type; d.custom = k.custom;
         if (!ui.sheet.tagsTouched) { const a = E.autoTags(d.cat, d.type, d.color); d.occasions = a.occasions; d.weather = a.weather; }
         renderSheet(); break;
       }
@@ -728,8 +814,8 @@
       case 'skin': S.profile.skin = D.v; save(); resetResults(); render(); break;
       case 'haircolor': S.profile.hairColor = D.v; save(); resetResults(); render(); break;
       case 'hairlen': S.profile.hairLength = D.v; save(); resetResults(); render(); break;
-      case 'export-json': download('daily-outfit-backup.json', 'application/json', JSON.stringify({ app: 'daily-outfit', version: 1, state: S, photos })); break;
-      case 'export-csv': download('wardrobe.csv', 'text/csv', E.wardrobeCSV(S)); break;
+      case 'export-json': shareFile('daily-outfit-backup-' + stamp() + '.json', 'application/json', JSON.stringify({ app: 'daily-outfit', version: 1, state: S, photos })); break;
+      case 'export-csv': shareFile('wardrobe-' + stamp() + '.csv', 'text/csv', E.wardrobeCSV(S)); break;
       case 'reset': ask(t('confirm.reset'), async () => { await OF.store.clear(); S = normalize(null); S.profile.lang = OF.getLang(); photos = {}; save(); resetResults(); ui.tab = 'today'; render(); }); break;
       case 'install': if (installEvt) { installEvt.prompt(); installEvt = null; render(); } break;
       case 'dlg-no': ui.dialog = null; renderDialog(); break;
@@ -746,8 +832,8 @@
     if (el.id === 'fileCam' || el.id === 'fileGal') { onPhoto(el.files[0]); el.value = ''; return; }
     if (el.id === 'fileMany') { startBatch(el.files); el.value = ''; return; }
     if (el.id === 'fileSelfie') { openSelfie(el.files[0]); el.value = ''; return; }
-    if (el.id === 'fileCsv') { importCsv(el.files[0]); el.value = ''; return; }
-    if (el.id === 'fileJson') { importJson(el.files[0]); el.value = ''; return; }
+    if (el.id === 'fileCsv') { importAny(el.files[0]); el.value = ''; return; }
+    if (el.id === 'fileJson') { importAny(el.files[0]); el.value = ''; return; }
     const b = el.closest('[data-bind]'); if (!b) return;
     const k = b.dataset.bind;
     if (k === 'sheet-cat') { readDraft(); ui.sheet.draft.type = E.TYPES[ui.sheet.draft.cat][0]; renderSheet(); return; }
