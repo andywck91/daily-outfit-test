@@ -246,4 +246,45 @@ test('item ids are unique and prefixed by category', () => {
   assert.ok(s.items.filter((i) => i.cat === 'Top').every((i) => /^T\d{3}$/.test(i.id)));
 });
 
+test('"Not for me" feedback is learned and changes the next suggestions', () => {
+  const s = freshState();
+  const cond = ['hot_humid'];
+  const r1 = E.generate(s, 'Casual', cond, { rng: E.mulberry32(5) });
+  const look = r1.looks[0];
+  const clothes = E.CLOTHING.map((c) => look.parts[c]).filter(Boolean);
+  E.applyFeedback(s, look, 'piece', 'Casual');
+  clothes.forEach((it) => assert.equal(s.feedback.item[it.id], -2));
+  const r2 = E.generate(s, 'Casual', cond, { rng: E.mulberry32(5) });
+  assert.notEqual(JSON.stringify(r2.looks[0].parts.Top && r2.looks[0].parts.Top.id) + (r2.looks[0].parts.Dress || {}).id, JSON.stringify(look.parts.Top && look.parts.Top.id) + (look.parts.Dress || {}).id);
+  // colour feedback is capped
+  for (let i = 0; i < 9; i++) E.applyFeedback(s, look, 'color', 'Casual');
+  Object.values(s.feedback.color).forEach((v) => assert.ok(v >= -4));
+  // occasion feedback removes the tag the system guessed
+  const s2 = freshState(); const l2 = E.generate(s2, 'Sport', cond, { rng: E.mulberry32(3) }).looks[0];
+  E.applyFeedback(s2, l2, 'occasion', 'Sport');
+  E.CLOTHING.map((c) => l2.parts[c]).filter(Boolean).forEach((it) => assert.ok(!it.occasions.includes('Sport')));
+});
+
+test('modest preference and festival palettes steer the choice', () => {
+  const s = freshState(); s.profile.modest = true;
+  for (let k = 0; k < 6; k++) {
+    const r = E.generate(s, 'Casual', ['hot_humid'], { rng: E.mulberry32(k) });
+    r.looks.forEach((l) => ['Top', 'Bottom', 'Dress'].forEach((c) => { if (l.parts[c]) assert.ok(!['tank', 'shorts', 'mini'].includes(l.parts[c].type), 'modest look had ' + l.parts[c].type); }));
+  }
+  const f = freshState();
+  const r = E.generate(f, 'Festive', ['hot_sunny'], { festival: 'cny', rng: E.mulberry32(2) });
+  assert.ok(r.looks.length >= 1);
+});
+
+test('occasion is guessed from a calendar-style note (English and Chinese)', () => {
+  const g = (x) => E.occasionFromText(x);
+  assert.equal(g('Client meeting 3pm').occasion, 'ClientVisit');
+  assert.equal(g('team meeting').occasion, 'Business');
+  assert.equal(g('Raya open house at Aunty\'s').occasion, 'Festive'); assert.equal(g('Raya open house').festival, 'raya');
+  assert.equal(g('CNY reunion dinner').festival, 'cny');
+  assert.equal(g('周六婚礼').occasion, 'Formal');
+  assert.equal(g('去健身').occasion, 'Sport');
+  assert.equal(g('blah').occasion, null);
+});
+
 console.log(`\n${passed} tests passed`);

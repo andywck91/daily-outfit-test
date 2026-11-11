@@ -12,6 +12,7 @@
   const ui = {
     tab: 'today', occasion: 'Business', wxOverride: null, aircon: true, airconTouched: false,
     weather: null, wxStatus: 'idle', result: null, worn: null, filter: 'All', sheet: null, dialog: null, zoom: null,
+    event: '', evMsg: '', festival: '', fbOpen: null, exclude: [], batch: null, selfie: null,
   };
 
   const SKINS = ['#F6D9C4', '#E8BFA0', '#D2A27E', '#B98A66', '#8D5A3C', '#5C3A26'];
@@ -52,10 +53,12 @@
     out.items = Array.isArray(st.items) ? st.items : [];
     out.log = Array.isArray(st.log) ? st.log : [];
     out.counters = st.counters || {};
+    out.feedback = { item: Object.assign({}, st.feedback && st.feedback.item), color: Object.assign({}, st.feedback && st.feedback.color) };
+    if (st.onboarded == null) out.onboarded = out.items.length > 0 || out.log.length > 0;
     return out;
   }
   function currentCond() { return E.conditions(ui.weather, ui.wxOverride, ui.aircon); }
-  function resetResults() { ui.result = null; ui.worn = null; }
+  function resetResults() { ui.result = null; ui.worn = null; ui.fbOpen = null; ui.exclude = []; }
 
   /* ------------------------------------------------------------ small components */
   function thumb(it, cls) {
@@ -84,14 +87,30 @@
       `<button role="tab" class="tab${ui.tab === k ? ' on' : ''}" data-act="tab" data-tab="${k}" aria-selected="${ui.tab === k}">${esc(t(l))}</button>`).join('')}</nav>`;
   }
 
+  function viewOnboarding() {
+    const p = S.profile;
+    const seg = (opts, cur, act) => `<div class="chips">${opts.map(([k, l]) => chip(l, String(cur) === String(k), act, { v: k })).join('')}</div>`;
+    return `<section class="card"><h2>${esc(t('onb.title'))}</h2>
+      <label class="lbl">${esc(t('onb.figure'))}</label>${seg([['feminine', t('figure.feminine')], ['neutral', t('figure.neutral')], ['masculine', t('figure.masculine')]], p.figure, 'figure')}
+      <label class="lbl">${esc(t('onb.n'))}</label>${seg([[5, '5'], [10, '10'], [14, '14']], S.settings.n, 'onb-n')}
+      <label class="lbl">${esc(t('onb.modest'))}</label>${seg([['1', t('onb.yes')], ['0', t('onb.no')]], p.modest ? '1' : '0', 'onb-modest')}
+      <div class="stack" style="margin-top:14px"><button class="btn primary block" data-act="onb-done">${esc(t('onb.start'))}</button>
+      <button class="btn block" data-act="onb-demo">${esc(t('onb.demo'))}</button></div></section>`;
+  }
+
   function viewToday() {
+    if (!S.onboarded) return viewOnboarding();
     if (!S.items.length) {
       return `<section class="card center"><h2>${esc(t('today.empty.title'))}</h2><p class="muted">${esc(t('today.empty.body'))}</p>
         <div class="stack"><button class="btn primary block" data-act="go-wardrobe">${esc(t('wardrobe.add'))}</button>
         <button class="btn block" data-act="demo">${esc(t('wardrobe.demo'))}</button></div></section>`;
     }
     const cond = currentCond();
-    let h = `<section class="card"><h2>${esc(t('today.occasion'))}</h2><div class="chips">${E.OCCASIONS.map((o) => chip(occLabel(o), ui.occasion === o, 'occ', { o })).join('')}</div></section>`;
+    let h = `<section class="card"><label class="lbl" style="margin-top:0" for="evIn">${esc(t('today.event'))}</label>
+      <div class="row"><input id="evIn" type="text" maxlength="80" value="${esc(ui.event)}" placeholder="${esc(t('today.eventPh'))}" autocomplete="off"><button class="btn" data-act="event-go">${esc(t('today.eventGo'))}</button></div>
+      ${ui.evMsg ? `<p class="muted small">${esc(ui.evMsg)}</p>` : ''}</section>`;
+    h += `<section class="card"><h2>${esc(t('today.occasion'))}</h2><div class="chips">${E.OCCASIONS.map((o) => chip(occLabel(o), ui.occasion === o, 'occ', { o })).join('')}</div>
+      ${ui.occasion === 'Festive' ? `<label class="lbl">${esc(t('fest.title'))}</label><div class="chips">${[['', 'fest.any'], ['raya', 'fest.raya'], ['cny', 'fest.cny'], ['deepavali', 'fest.deepavali']].map(([k, l]) => chip(t(l), ui.festival === k, 'fest', { k })).join('')}</div>` : ''}</section>`;
     h += weatherCard(cond);
     h += `<button class="btn primary block big" data-act="suggest">${esc(ui.result ? t('today.again') : t('today.suggest'))}</button>`;
     if (ui.worn) h += wornCard();
@@ -140,7 +159,10 @@
     return `<article class="card look"><button class="fig" data-act="zoom" data-i="${i}" aria-label="${esc(t('today.look', { n: i + 1 }))}">${svg}</button>
       <div class="info"><h3>${esc(t('today.look', { n: i + 1 }))}</h3><ul class="pieces">${rows}</ul>
       <p class="groom"><b>${esc(t('today.hair'))}</b> ${esc(t(l.groom.hairKey))}<br><b>${esc(male ? t('today.groom') : t('today.makeup'))}</b> ${esc(l.groom.makeupKeys.map((k) => t(k)).join(' '))}</p>
-      ${stretch}<button class="btn primary block" data-act="wear" data-i="${i}">${esc(t('today.wear'))}</button></div></article>`;
+      ${stretch}<button class="btn primary block" data-act="wear" data-i="${i}">${esc(t('today.wear'))}</button>
+      ${ui.fbOpen === i
+        ? `<div class="fbbox"><p class="small">${esc(t('fb.ask'))}</p><div class="chips">${chip(t('fb.color'), false, 'fb', { i, r: 'color' })}${chip(t('fb.occasion', { o: occShort(ui.result.occasion) }), false, 'fb', { i, r: 'occasion' })}${chip(t('fb.piece'), false, 'fb', { i, r: 'piece' })}</div></div>`
+        : `<button class="btn small ghost block" data-act="dislike" data-i="${i}">${esc(t('fb.no'))}</button>`}</div></article>`;
   }
 
   function dryCard(r) {
@@ -163,9 +185,9 @@
     const rows = list.map((it) => `<div class="item" data-act="edit" data-id="${esc(it.id)}" role="button" tabindex="0">${thumb(it)}
       <div class="grow"><b>${esc(nm(it))}</b><div class="muted small">${esc(t('cat.' + it.cat))} · ${esc(t('type.' + it.type))} · ${esc(it.id)}</div>${badge(it)}</div>
       <button class="btn small ghost" data-act="laundry" data-id="${esc(it.id)}" aria-pressed="${!!it.laundry}">${esc(t('wardrobe.laundry'))}${it.laundry ? ' ✓' : ''}</button></div>`).join('');
-    return `<section class="card"><div class="row wrap"><button class="btn primary" data-act="add">${esc(t('wardrobe.add'))}</button>
+    return `<section class="card"><div class="row wrap"><button class="btn primary" data-act="add">${esc(t('wardrobe.add'))}</button><button class="btn" data-act="pick-many">${esc(t('wardrobe.addMany'))}</button>
       <button class="btn" data-act="pick-csv">${esc(t('wardrobe.importCsv'))}</button><button class="btn" data-act="demo">${esc(t('wardrobe.demo'))}</button></div>
-      <input type="file" id="fileCsv" accept=".csv,text/csv,text/plain" hidden>
+      <input type="file" id="fileCsv" accept=".csv,text/csv,text/plain" hidden><input type="file" id="fileMany" accept="image/*" multiple hidden>
       <p class="muted small">${esc(t('wardrobe.count', { n: S.items.length }))} · ${esc(t('wardrobe.limit'))}</p>
       <div class="chips">${chips}</div></section>
       ${rows ? `<section class="list">${rows}</section>` : `<p class="muted center">${esc(t('wardrobe.empty'))}</p>`}`;
@@ -214,7 +236,11 @@
         <label class="lbl">${esc(t('settings.skin'))}</label>${sw(SKINS, p.skin, 'skin')}
         <label class="lbl">${esc(t('settings.hairColor'))}</label>${sw(HAIRS, p.hairColor, 'haircolor')}
         <label class="lbl">${esc(t('settings.hairLength'))}</label>${seg([['long', t('hl.long')], ['medium', t('hl.medium')], ['short', t('hl.short')]], p.hairLength, 'hairlen')}
-        <label class="check"><input type="checkbox" data-bind="makeup" ${p.makeup ? 'checked' : ''}> <span>${esc(t('settings.makeup'))}</span></label></section>
+        <label class="check"><input type="checkbox" data-bind="makeup" ${p.makeup ? 'checked' : ''}> <span>${esc(t('settings.makeup'))}</span></label>
+        <label class="check"><input type="checkbox" data-bind="modest" ${p.modest ? 'checked' : ''}> <span>${esc(t('settings.modest'))}</span></label>
+        <label class="check"><input type="checkbox" data-bind="removeBg" ${p.removeBg ? 'checked' : ''}> <span>${esc(t('settings.removeBg'))}</span></label>
+        <button class="btn block" data-act="selfie" style="margin-top:8px">${esc(t('settings.selfie'))}</button><input type="file" id="fileSelfie" accept="image/*" hidden>
+        <p class="muted small">${esc(t('settings.fbInfo'))}</p><button class="btn block" data-act="fb-reset">${esc(t('settings.fbReset'))}</button></section>
       <section class="card"><h2>${esc(t('settings.rules'))}</h2>
         <label class="lbl" for="nIn">${esc(t('settings.n'))}</label><input id="nIn" type="number" inputmode="numeric" min="0" max="60" value="${S.settings.n}" data-bind="n">
         <label class="lbl">${esc(t('settings.apply'))}</label><div class="checks">${rules}</div>
@@ -293,17 +319,49 @@
   }
 
   /* ------------------------------------------------------------ photo + colour */
-  function readPhoto(file) {
+  /** Remove a plain background by flood-filling from the photo border. Returns a canvas with transparency, or null. */
+  function cutout(c) {
+    const w = c.width, h = c.height, ctx = c.getContext('2d');
+    const img = ctx.getImageData(0, 0, w, h), d = img.data;
+    const at = (x, y) => (y * w + x) * 4;
+    const border = [];
+    for (let x = 0; x < w; x++) { border.push([x, 0], [x, h - 1]); }
+    for (let y = 1; y < h - 1; y++) { border.push([0, y], [w - 1, y]); }
+    let r = 0, g = 0, b = 0;
+    border.forEach(([x, y]) => { const i = at(x, y); r += d[i]; g += d[i + 1]; b += d[i + 2]; });
+    r /= border.length; g /= border.length; b /= border.length;
+    const near = (i, tol) => (d[i] - r) ** 2 + (d[i + 1] - g) ** 2 + (d[i + 2] - b) ** 2 < tol * tol;
+    const ok = border.filter(([x, y]) => near(at(x, y), 40)).length / border.length;
+    if (ok < 0.85) return null;
+    const seen = new Uint8Array(w * h), q = new Int32Array(w * h);
+    let head = 0, tail = 0, removed = 0;
+    border.forEach(([x, y]) => { const k = y * w + x; if (!seen[k] && near(k * 4, 52)) { seen[k] = 1; q[tail++] = k; } });
+    while (head < tail) {
+      const k = q[head++], x = k % w, y = (k - x) / w;
+      d[k * 4 + 3] = 0; removed++;
+      if (x > 0) { const n = k - 1; if (!seen[n] && near(n * 4, 52)) { seen[n] = 1; q[tail++] = n; } }
+      if (x < w - 1) { const n = k + 1; if (!seen[n] && near(n * 4, 52)) { seen[n] = 1; q[tail++] = n; } }
+      if (y > 0) { const n = k - w; if (!seen[n] && near(n * 4, 52)) { seen[n] = 1; q[tail++] = n; } }
+      if (y < h - 1) { const n = k + w; if (!seen[n] && near(n * 4, 52)) { seen[n] = 1; q[tail++] = n; } }
+    }
+    const keep = 1 - removed / (w * h);
+    if (keep < 0.08 || keep > 0.85) return null;
+    ctx.putImageData(img, 0, 0);
+    return c;
+  }
+  function readPhoto(file, removeBg) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file), img = new Image();
       img.onload = () => {
         try {
-          const r = Math.min(1, 480 / Math.max(img.naturalWidth, img.naturalHeight));
+          const r = Math.min(1, (removeBg ? 360 : 480) / Math.max(img.naturalWidth, img.naturalHeight));
           const c = document.createElement('canvas');
           c.width = Math.max(1, Math.round(img.naturalWidth * r)); c.height = Math.max(1, Math.round(img.naturalHeight * r));
           c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
           URL.revokeObjectURL(url);
-          resolve({ dataUrl: c.toDataURL('image/jpeg', 0.78), color: dominant(c) });
+          let cut = null;
+          if (removeBg) { try { cut = cutout(c); } catch (e) { cut = null; } }
+          resolve({ dataUrl: cut ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.78), color: dominant(c), cut: !!cut });
         } catch (e) { reject(e); }
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
@@ -329,10 +387,97 @@
     if (!file) return;
     readDraft();
     try {
-      const { dataUrl, color } = await readPhoto(file);
+      const { dataUrl, color, cut } = await readPhoto(file, S.profile.removeBg);
+      if (S.profile.removeBg && !cut) toast(t('toast.bgFail'));
       ui.sheet.photo = dataUrl; ui.sheet.photoChanged = true; ui.sheet.draft.color = color; ui.sheet.colorAuto = true;
       renderSheet();
     } catch (e) { toast('Could not read that photo'); }
+  }
+
+  /* ------------------------------------------------------------ batch add */
+  async function startBatch(files) {
+    const list = [...files].filter((f) => /^image\//.test(f.type) || !f.type).slice(0, 60);
+    if (!list.length) return;
+    ui.batch = { files: list, i: 0, added: 0, cur: null };
+    await loadBatchCurrent();
+  }
+  async function loadBatchCurrent() {
+    const b = ui.batch; if (!b) return;
+    if (b.i >= b.files.length) return finishBatch();
+    b.cur = null; renderBatch();
+    try { b.cur = await readPhoto(b.files[b.i], S.profile.removeBg); } catch (e) { b.i++; return loadBatchCurrent(); }
+    renderBatch();
+  }
+  function finishBatch() {
+    const n = ui.batch ? ui.batch.added : 0;
+    ui.batch = null; renderBatch(); resetResults(); render();
+    if (n) toast(t('batch.done', { n }));
+  }
+  function batchAdd(cat, type) {
+    const b = ui.batch; if (!b || !b.cur) return;
+    const d = { cat, type, color: b.cur.color };
+    const a = E.autoTags(cat, type, d.color);
+    const it = { id: E.nextId(S, cat), addedAt: Date.now(), cat, type, name: autoName('en', d), nameZh: autoName('zh', d), color: d.color, occasions: a.occasions, weather: a.weather, laundry: false };
+    S.items.push(it); photos[it.id] = b.cur.dataUrl; OF.store.putPhoto(it.id, b.cur.dataUrl);
+    save(); b.added++; b.i++; loadBatchCurrent();
+  }
+  function renderBatch() {
+    const root = $('sheet-root'), b = ui.batch;
+    if (!b) { if (!ui.sheet) root.innerHTML = ''; return; }
+    const prev = b.cur ? `<img class="photo-prev" style="width:140px;height:140px" src="${b.cur.dataUrl}" alt="">` : `<div class="photo-prev sw" style="width:140px;height:140px"></div>`;
+    root.innerHTML = `<div class="overlay"><div class="sheet" role="dialog" aria-modal="true">
+      <div class="row between"><h2>${esc(t('batch.title', { i: Math.min(b.i + 1, b.files.length), n: b.files.length }))}</h2><button class="btn small ghost" data-act="batch-stop">${esc(t('batch.stop'))}</button></div>
+      <div class="row"><div>${prev}</div><p class="muted small grow">${esc(t('batch.hint'))}</p></div>
+      ${E.CATEGORIES.map((c) => `<div class="kgroup"><span class="klabel">${esc(t('cat.' + c))}</span><div class="chips">${E.TYPES[c].map((x) => chip(t('type.' + x), false, 'batch-kind', { c, v: x })).join('')}</div></div>`).join('')}
+      <div class="row end"><button class="btn" data-act="batch-skip">${esc(t('batch.skip'))}</button></div></div></div>`;
+  }
+
+  /* ------------------------------------------------------------ selfie colour picker (nothing is stored) */
+  function openSelfie(file) {
+    if (!file) return;
+    ui.selfie = { url: URL.createObjectURL(file), mode: 'skin' };
+    renderSelfie();
+    const img = new Image();
+    img.onload = () => {
+      const cv = $('selfieCv'); if (!cv) return;
+      const r = Math.min(1, 320 / Math.max(img.naturalWidth, img.naturalHeight));
+      cv.width = Math.round(img.naturalWidth * r); cv.height = Math.round(img.naturalHeight * r);
+      cv.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0, cv.width, cv.height);
+    };
+    img.src = ui.selfie.url;
+  }
+  function closeSelfie() { if (ui.selfie) URL.revokeObjectURL(ui.selfie.url); ui.selfie = null; $('sheet-root').innerHTML = ''; render(); }
+  function renderSelfie() {
+    const sf = ui.selfie; if (!sf) return;
+    const sw = (c) => `<span class="dot" style="width:22px;height:22px;background:${c}"></span>`;
+    $('sheet-root').innerHTML = `<div class="overlay"><div class="sheet" role="dialog" aria-modal="true"><div class="row between"><h2>${esc(t('selfie.title'))}</h2></div>
+      <p class="muted small">${esc(t('selfie.hint'))}</p>
+      <div class="chips">${chip(t('selfie.skin'), sf.mode === 'skin', 'selfie-mode', { v: 'skin' })}${chip(t('selfie.hair'), sf.mode === 'hair', 'selfie-mode', { v: 'hair' })}</div>
+      <canvas id="selfieCv" style="max-width:100%;border-radius:12px;touch-action:manipulation"></canvas>
+      <div class="row" style="margin-top:8px"><span id="skinSw">${sw(S.profile.skin)}</span><span id="hairSw">${sw(S.profile.hairColor)}</span></div>
+      <div class="row end"><button class="btn primary" data-act="selfie-done">${esc(t('selfie.done'))}</button></div></div></div>`;
+  }
+  function nearestOf(palette, r, g, b) {
+    let best = palette[0], bd = Infinity;
+    palette.forEach((hex) => {
+      const [r2, g2, b2] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+      const d = 2 * (r - r2) ** 2 + 4 * (g - g2) ** 2 + 3 * (b - b2) ** 2;
+      if (d < bd) { bd = d; best = hex; }
+    });
+    return best;
+  }
+  function selfieTap(e) {
+    const cv = e.target, rect = cv.getBoundingClientRect();
+    const x = Math.round((e.clientX - rect.left) * cv.width / rect.width), y = Math.round((e.clientY - rect.top) * cv.height / rect.height);
+    const k = 4, x0 = Math.max(0, x - k), y0 = Math.max(0, y - k), w = Math.min(cv.width - x0, 2 * k + 1), h = Math.min(cv.height - y0, 2 * k + 1);
+    if (w < 1 || h < 1) return;
+    const d = cv.getContext('2d').getImageData(x0, y0, w, h).data;
+    let r = 0, g = 0, b = 0; const n = d.length / 4;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+    r /= n; g /= n; b /= n;
+    if (ui.selfie.mode === 'skin') { S.profile.skin = nearestOf(SKINS, r, g, b); $('skinSw').firstChild.style.background = S.profile.skin; }
+    else { S.profile.hairColor = nearestOf(HAIRS, r, g, b); $('hairSw').firstChild.style.background = S.profile.hairColor; }
+    save(); resetResults();
   }
 
   /* ------------------------------------------------------------ dialogs + zoom */
@@ -350,7 +495,8 @@
   /* ------------------------------------------------------------ actions */
   function suggest() {
     ui.worn = null;
-    ui.result = E.generate(S, ui.occasion, currentCond());
+    ui.fbOpen = null;
+    ui.result = E.generate(S, ui.occasion, currentCond(), { festival: ui.occasion === 'Festive' ? ui.festival || null : null, exclude: ui.exclude });
     render();
     setTimeout(() => { const el = document.querySelector('.look, .card.warn'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30);
   }
@@ -420,6 +566,36 @@
     if (act === 'zoom-close' && e.target !== el && !e.target.closest('button.btn')) return;
     const D = el.dataset;
     switch (act) {
+      case 'onb-n': S.settings.n = +D.v; save(); render(); break;
+      case 'onb-modest': S.profile.modest = D.v === '1'; save(); render(); break;
+      case 'onb-done': S.onboarded = true; save(); render(); break;
+      case 'onb-demo': S.onboarded = true; S.items.length ? (save(), render()) : loadDemo(); break;
+      case 'event-go': {
+        const v = ($('evIn') || {}).value || ''; ui.event = v;
+        const g = E.occasionFromText(v);
+        if (g.occasion) {
+          ui.occasion = g.occasion; if (g.festival) ui.festival = g.festival;
+          if (!ui.airconTouched) ui.aircon = OFFICE_OCC.includes(g.occasion);
+          ui.evMsg = t('today.eventSet', { o: occLabel(g.occasion) }); resetResults(); render(); suggest();
+        } else { ui.evMsg = v.trim() ? t('today.eventNone') : ''; render(); }
+        break;
+      }
+      case 'fest': ui.festival = D.k; resetResults(); render(); break;
+      case 'dislike': ui.fbOpen = +D.i; render(); break;
+      case 'fb': {
+        const l = ui.result && ui.result.looks[+D.i]; if (!l) break;
+        E.applyFeedback(S, l, D.r, ui.result.occasion);
+        ui.exclude = ui.exclude.concat(E.CLOTHING.map((c) => l.parts[c]).filter(Boolean).map((it) => it.id));
+        save(); toast(t('fb.thanks')); suggest(); break;
+      }
+      case 'fb-reset': S.feedback = { item: {}, color: {} }; save(); resetResults(); toast(t('toast.fbReset')); break;
+      case 'pick-many': $('fileMany').click(); break;
+      case 'batch-kind': batchAdd(D.c, D.v); break;
+      case 'batch-skip': if (ui.batch) { ui.batch.i++; loadBatchCurrent(); } break;
+      case 'batch-stop': finishBatch(); break;
+      case 'selfie': $('fileSelfie').click(); break;
+      case 'selfie-mode': ui.selfie.mode = D.v; document.querySelectorAll('[data-act="selfie-mode"]').forEach((b) => { const on = b.dataset.v === D.v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }); break;
+      case 'selfie-done': closeSelfie(); break;
       case 'tab': ui.tab = D.tab; render(); window.scrollTo({ top: 0 }); break;
       case 'lang': setLang(OF.getLang() === 'zh' ? 'en' : 'zh'); break;
       case 'setlang': setLang(D.v); break;
@@ -476,17 +652,24 @@
   document.addEventListener('change', (e) => {
     const el = e.target;
     if (el.id === 'fileCam' || el.id === 'fileGal') { onPhoto(el.files[0]); el.value = ''; return; }
+    if (el.id === 'fileMany') { startBatch(el.files); el.value = ''; return; }
+    if (el.id === 'fileSelfie') { openSelfie(el.files[0]); el.value = ''; return; }
     if (el.id === 'fileCsv') { importCsv(el.files[0]); el.value = ''; return; }
     if (el.id === 'fileJson') { importJson(el.files[0]); el.value = ''; return; }
     const b = el.closest('[data-bind]'); if (!b) return;
     const k = b.dataset.bind;
     if (k === 'sheet-cat') { readDraft(); ui.sheet.draft.type = E.TYPES[ui.sheet.draft.cat][0]; renderSheet(); return; }
     if (k === 'aircon') { ui.aircon = b.checked; ui.airconTouched = true; resetResults(); render(); return; }
+    if (k === 'modest') { S.profile.modest = b.checked; save(); resetResults(); render(); return; }
+    if (k === 'removeBg') { S.profile.removeBg = b.checked; save(); render(); return; }
     if (k === 'makeup') { S.profile.makeup = b.checked; save(); resetResults(); render(); return; }
     if (k === 'n') { S.settings.n = Math.max(0, Math.min(60, parseInt(b.value, 10) || 0)); save(); resetResults(); render(); return; }
     if (k === 'min') { S.settings.minItems = Math.max(1, Math.min(20, parseInt(b.value, 10) || 3)); save(); render(); return; }
     if (k.startsWith('rule:')) { S.settings.rule[k.slice(5)] = b.checked; save(); resetResults(); render(); }
   });
+  document.addEventListener('input', (e) => { if (e.target.id === 'evIn') ui.event = e.target.value; });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'evIn') { e.preventDefault(); document.querySelector('[data-act="event-go"]').click(); } });
+  document.addEventListener('click', (e) => { if (e.target.id === 'selfieCv' && ui.selfie) selfieTap(e); });
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (ui.tab === 'settings') render(); });
 
   /* ------------------------------------------------------------ render + boot */

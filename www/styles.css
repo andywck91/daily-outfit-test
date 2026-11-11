@@ -49,7 +49,7 @@ input[type=color] { width: 48px; height: 44px; padding: 2px; border: 1px solid v
 .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
 .swb { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line); cursor: pointer; padding: 0; }
 .swb.on { outline: 3px solid var(--accent); outline-offset: 2px; } .swb.sm { width: 30px; height: 30px; }
-.thumb { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 1px solid var(--line); }
+.thumb { background: var(--chip); width: 56px; height: 56px; border-radius: 12px; object-fit: cover; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 700; border: 1px solid var(--line); }
 .list { display: flex; flex-direction: column; gap: 8px; }
 .item { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; cursor: pointer; }
 .badge { display: inline-block; font-size: 12px; border-radius: 999px; padding: 2px 8px; margin-top: 4px; }
@@ -71,7 +71,7 @@ table.gap { border-collapse: separate; border-spacing: 3px; font-size: 13px; }
 table.gap th { font-weight: 500; color: var(--muted); padding: 2px 4px; text-align: center; min-width: 46px; vertical-align: bottom; }
 table.gap th.rowh { text-align: left; position: sticky; left: 0; background: var(--surface); min-width: 68px; }
 table.gap td { text-align: center; padding: 8px 4px; border-radius: 8px; font-weight: 600; } td.na { color: var(--muted); font-weight: 400; } td.low { background: var(--low); } td.okc { background: var(--okc); }
-.photo-prev { width: 96px; height: 96px; border-radius: 14px; object-fit: cover; border: 1px solid var(--line); display: block; }
+.photo-prev { background: var(--chip); width: 96px; height: 96px; border-radius: 14px; object-fit: cover; border: 1px solid var(--line); display: block; }
 .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: flex; justify-content: center; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tabs .tab { flex: 1; max-width: 104px; font: inherit; font-size: 13px; background: none; border: 0; color: var(--muted); padding: 14px 4px; min-height: 52px; cursor: pointer; }
 .tabs .tab.on { color: var(--accent); font-weight: 700; box-shadow: inset 0 3px 0 var(--accent); }
@@ -88,3 +88,5 @@ table.gap td { text-align: center; padding: 8px 4px; border-radius: 8px; font-we
 
 .kgroup { margin: 6px 0; } .klabel { font-size: 12px; color: var(--muted); }
 details#f-fine { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; } details#f-fine summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 40px; display: flex; align-items: center; }
+
+.fbbox { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 6px; }

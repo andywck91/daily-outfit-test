@@ -90,7 +90,7 @@
   function defaultState() {
     return {
       version: 1,
-      profile: { name: '', figure: 'feminine', skin: '#E8BFA0', hairColor: '#2A1F1C', hairLength: 'long', makeup: true, lang: 'en' },
+      profile: { name: '', figure: 'feminine', skin: '#E8BFA0', hairColor: '#2A1F1C', hairLength: 'long', makeup: true, lang: 'en', modest: false, removeBg: true },
       settings: {
         n: 10,
         rule: { Top: true, Bottom: true, Dress: true, Outerwear: true, Shoes: false, Bag: false, Jewelry: false },
@@ -99,6 +99,8 @@
       items: [],
       log: [],
       counters: {},
+      feedback: { item: {}, color: {} },
+      onboarded: false,
     };
   }
 
@@ -224,6 +226,49 @@
     };
   }
 
+  const FESTIVAL_COLORS = {
+    raya: ['green', 'gold', 'beige', 'brown', 'lightblue', 'pink', 'white'],
+    cny: ['red', 'gold', 'white', 'pink'],
+    deepavali: ['orange', 'yellow', 'purple', 'pink', 'gold', 'green', 'red', 'blue'],
+  };
+  const MODEST_AVOID = ['tank', 'shorts', 'mini'];
+
+  /** record "not for me": reason is 'color' | 'occasion' | 'piece'. Mutates state.feedback / item tags. */
+  function applyFeedback(state, look, reason, occasion) {
+    const fb = state.feedback = state.feedback || { item: {}, color: {} };
+    fb.item = fb.item || {}; fb.color = fb.color || {};
+    const clothes = CLOTHING.map((c) => look.parts[c]).filter(Boolean);
+    clothes.forEach((it) => {
+      if (reason === 'color') { const k = colorKey(it.color); fb.color[k] = Math.max(-4, (fb.color[k] || 0) - 1); }
+      else if (reason === 'occasion') { it.occasions = (it.occasions || []).filter((o) => o !== occasion); if (!it.occasions.length) it.occasions = ['Casual']; }
+      else fb.item[it.id] = Math.max(-4, (fb.item[it.id] || 0) - 2);
+    });
+  }
+
+  const OCC_WORDS = [
+    ['Festive', /raya|hari raya|aidilfitri|cny|chinese new year|lunar new year|deepavali|diwali|festival|open house|春节|过年|新年|开斋|屏哈|节日/i],
+    ['Formal', /wedding|dinner|gala|dinner party|ceremony|funeral|convocation|婚礼|晚宴|典礼|葬礼|毕业/i],
+    ['ClientVisit', /client|customer|site visit|visit|supplier|客户|拜访|客人/i],
+    ['Business', /meeting|office|presentation|interview|work|conference|workshop|会议|开会|面试|上班|办公|汇报/i],
+    ['Date', /date|anniversary|约会|纪念日/i],
+    ['Party', /party|birthday|reunion|club|drinks|聚会|生日|派对|同学会/i],
+    ['Sport', /gym|run|yoga|sport|badminton|hike|workout|swim|运动|健身|跑步|羽毛球|爬山/i],
+    ['Beach', /beach|pool|island|snorkel|海边|沙滩|泳池/i],
+    ['Travel', /flight|travel|trip|airport|road ?trip|旅行|机场|出差|飞/i],
+    ['Casual', /lunch|coffee|brunch|mall|shopping|friends|errand|逛街|喝咖啡|午餐|朋友/i],
+  ];
+  /** guess the occasion (and festival) from a line like "client meeting 3pm" */
+  function occasionFromText(text) {
+    const s = String(text || '');
+    let occasion = null;
+    for (const [o, re] of OCC_WORDS) if (re.test(s)) { occasion = o; break; }
+    let festival = null;
+    if (/raya|aidilfitri|开斋|屏哈|open house/i.test(s)) festival = 'raya';
+    else if (/cny|chinese new year|lunar new year|春节|过年|新年/i.test(s)) festival = 'cny';
+    else if (/deepavali|diwali/i.test(s)) festival = 'deepavali';
+    return { occasion, festival };
+  }
+
   function generate(state, occasion, cond, opts) {
     opts = opts || {};
     const rng = opts.rng || Math.random;
@@ -235,7 +280,8 @@
 
     const avail = state.items.filter((i) => itemStatus(st, i).status === 'available');
 
-    function scored(cat) {
+    function scored(cat0) {
+      const cat = cat0;
       return avail.filter((i) => i.cat === cat).map((it) => {
         let s = 0, stretch = false;
         const occ = it.occasions || [];
@@ -246,6 +292,15 @@
         if (w.length) s += w.some((x) => cond.includes(x)) ? 2 : -2;
         const last = lastWorn(state, it.id);
         s += last ? Math.min(2, (L - last) / (N * 1.5)) : 2;
+        // learned taste (from the "not for me" button) and Malaysia-specific context
+        const fb = state.feedback || {};
+        s += (fb.item && fb.item[it.id]) || 0;
+        if (CLOTHING.includes(cat)) {
+          s += (fb.color && fb.color[colorKey(it.color)]) || 0;
+          if (opts.festival && FESTIVAL_COLORS[opts.festival] && FESTIVAL_COLORS[opts.festival].includes(colorKey(it.color))) s += 1.5;
+          if (state.profile && state.profile.modest && MODEST_AVOID.includes(it.type)) s -= 6;
+        }
+        if (opts.exclude && opts.exclude.includes(it.id)) s -= 50;
         return { it, s, stretch };
       });
     }
@@ -551,7 +606,7 @@
     engine: {
       CATEGORIES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
-      minFeasibleN, inferType, relevant, autoTags, colorKey,
+      minFeasibleN, inferType, relevant, autoTags, colorKey, applyFeedback, occasionFromText, FESTIVAL_COLORS,
     },
   });
 })(typeof window !== 'undefined' ? window : globalThis);

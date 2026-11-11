@@ -89,6 +89,16 @@
       'mk.glam': 'Pick one focus: defined eyes or a bold lip. Add highlighter.', 'mk.formal': 'Even base, soft smoky eye or classic lip.',
       'mk.skin': 'Skincare: moisturiser, sunscreen, lip balm.',
       'mk.humid': 'Humid: set with powder or setting spray; blot, do not rub.', 'mk.rain': 'Rain: waterproof mascara, skip heavy base.', 'mk.sun': 'Sunny: SPF 50, reapply at midday.',
+      'onb.title': 'Welcome! 3 quick questions', 'onb.figure': '1. Which figure should the illustrations use?', 'onb.n': '2. Do not repeat a piece of clothing for how many outfits?',
+      'onb.modest': '3. Prefer more coverage (sleeves, longer hems)?', 'onb.yes': 'Yes', 'onb.no': 'No preference', 'onb.start': 'Start', 'onb.demo': 'Start with a sample wardrobe',
+      'today.event': 'What is on today? (optional)', 'today.eventPh': 'e.g. client meeting, Raya open house', 'today.eventSet': 'Picked "{o}" from your note.', 'today.eventNone': 'Could not guess the occasion; pick one below.', 'today.eventGo': 'Pick for me',
+      'fest.title': 'Which festival?', 'fest.any': 'Any', 'fest.raya': 'Hari Raya', 'fest.cny': 'Chinese New Year', 'fest.deepavali': 'Deepavali',
+      'fb.no': 'Not for me', 'fb.ask': 'What is wrong with this look?', 'fb.color': 'The colours', 'fb.occasion': 'Not right for {o}', 'fb.piece': 'I do not like these pieces', 'fb.thanks': 'Noted. New ideas below.',
+      'settings.fbReset': 'Forget what I disliked', 'toast.fbReset': 'Learned taste cleared', 'settings.fbInfo': 'The app learns from "Not for me". Colours or pieces you reject score lower next time.',
+      'wardrobe.addMany': 'Add many photos', 'batch.title': 'Photo {i} of {n}', 'batch.hint': 'Tap what it is. It saves and moves to the next photo.', 'batch.skip': 'Skip', 'batch.stop': 'Stop', 'batch.done': 'Added {n} items',
+      'settings.removeBg': 'Remove plain photo backgrounds (works best on a plain wall or bed)', 'settings.modest': 'Prefer more coverage (avoid tanks, shorts and mini dresses)',
+      'settings.selfie': 'Pick skin and hair colour from a selfie', 'selfie.title': 'Selfie colours', 'selfie.hint': 'Tap your skin, then your hair. The photo stays on this phone and is not saved.', 'selfie.skin': 'Tap skin', 'selfie.hair': 'Tap hair', 'selfie.done': 'Done',
+      'toast.bgFail': 'Background not removed (not plain enough); kept the original.'
     },
     zh: {
       'app.title': '每日穿搭',
@@ -176,6 +186,16 @@
       'mk.glam': '眼妆或唇妆二选一做重点，再加高光。', 'mk.formal': '底妆均匀，柔和烟熏眼或经典红唇。',
       'mk.skin': '护肤：保湿、防晒、润唇膏。',
       'mk.humid': '湿热天：用散粉或定妆喷雾定妆，用按压代替擦拭吸油。', 'mk.rain': '下雨天：用防水睫毛膏，底妆不要太厚。', 'mk.sun': '大晴天：SPF50，中午补涂。',
+      'onb.title': '欢迎！先回答 3 个问题', 'onb.figure': '1. 插画用哪种体型？', 'onb.n': '2. 同一件衣服隔几套才能再穿？',
+      'onb.modest': '3. 偏好更多遮盖（有袖、长下摆）吗？', 'onb.yes': '是', 'onb.no': '无所谓', 'onb.start': '开始', 'onb.demo': '先用示例衣柜体验',
+      'today.event': '今天有什么安排？（选填）', 'today.eventPh': '例如：客户会议、开斋节拜访', 'today.eventSet': '根据你的备注选了“{o}”。', 'today.eventNone': '没能判断场合，请在下面自己选。', 'today.eventGo': '帮我选',
+      'fest.title': '哪个节日？', 'fest.any': '不限', 'fest.raya': '开斋节', 'fest.cny': '春节', 'fest.deepavali': '屠妖节',
+      'fb.no': '不喜欢', 'fb.ask': '这套哪里不满意？', 'fb.color': '颜色', 'fb.occasion': '不适合“{o}”', 'fb.piece': '不喜欢这几件', 'fb.thanks': '记下了，下面是新的搭配。',
+      'settings.fbReset': '清除已学到的喜好', 'toast.fbReset': '已清除', 'settings.fbInfo': '应用会从“不喜欢”里学习：被你拒绝的颜色或单品，下次得分会降低。',
+      'wardrobe.addMany': '批量添加照片', 'batch.title': '第 {i} / {n} 张', 'batch.hint': '点一下它是什么，会自动保存并跳到下一张。', 'batch.skip': '跳过', 'batch.stop': '停止', 'batch.done': '已添加 {n} 件',
+      'settings.removeBg': '去除纯色照片背景（背景越单一效果越好）', 'settings.modest': '偏好更多遮盖（避开背心、短裤、迷你连衣裙）',
+      'settings.selfie': '从自拍照取肤色和发色', 'selfie.title': '自拍取色', 'selfie.hint': '先点皮肤，再点头发。照片只在这部手机上处理，不会保存。', 'selfie.skin': '点皮肤', 'selfie.hair': '点头发', 'selfie.done': '完成',
+      'toast.bgFail': '背景不够单一，没有去除，保留原图。'
     },
   };
   let lang = 'en';

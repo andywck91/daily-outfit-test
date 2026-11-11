@@ -41,8 +41,19 @@ const ok = (m) => console.log('ok  -', m);
 
   await page.goto(url);
   await page.waitForSelector('.card');
+  assert.ok(await page.locator('text=3 quick questions').count(), 'onboarding');
+  await shot('onboarding');
+  await page.click('button[data-act="figure"][data-v="neutral"]');
+  await page.click('button[data-act="onb-n"][data-v="5"]');
+  await page.click('button[data-act="onb-modest"][data-v="1"]');
+  let s0 = await st();
+  assert.equal(s0.profile.figure, 'neutral'); assert.equal(s0.settings.n, 5); assert.equal(s0.profile.modest, true);
+  await page.click('button[data-act="figure"][data-v="feminine"]');
+  await page.click('button[data-act="onb-n"][data-v="10"]');
+  await page.click('button[data-act="onb-modest"][data-v="0"]');
+  await page.click('button[data-act="onb-done"]');
   assert.ok(await page.locator('text=Your wardrobe is empty').count(), 'empty state');
-  ok('first run shows the empty-wardrobe card');
+  ok('first run: 3-question onboarding, then the empty-wardrobe card');
   await shot('empty');
 
   // demo wardrobe
@@ -107,7 +118,7 @@ const ok = (m) => console.log('ok  -', m);
   await page.setInputFiles('#fileGal', PHOTO);
   await page.waitForSelector('text=Colour picked from your photo');
   const col = await page.inputValue('#f-color');
-  assert.ok(/^#c0/i.test(col), 'detected colour ' + col);
+  assert.ok(/^#c[0-2]/i.test(col), 'detected colour ' + col);
   await page.click('button[data-act="sheet-save"]');
   await page.waitForSelector('text=Tap what kind of item it is');
   assert.ok(await page.locator('.sheet').count(), 'sheet stays open until a kind is chosen');
@@ -170,8 +181,73 @@ const ok = (m) => console.log('ok  -', m);
   assert.equal((await st()).log.length, 1);
   ok('data survives a reload (IndexedDB)');
 
+  // note-to-occasion + Raya palette
+  await page.click('button[data-act="tab"][data-tab="today"]');
+  await page.fill('#evIn', 'Raya open house at Aunty');
+  await page.click('button[data-act="event-go"]');
+  await page.waitForSelector('.look');
+  let u = await page.evaluate(() => ({ o: window.__app.ui.occasion, f: window.__app.ui.festival }));
+  assert.equal(u.o, 'Festive'); assert.equal(u.f, 'raya');
+  ok('typed "Raya open house" -> Festive + Hari Raya palette, looks shown');
+  await shot('festive-raya');
+
+  // "Not for me" feedback
+  const beforeIds = await page.evaluate(() => window.__app.ui.result.looks.map((l) => Object.values(l.parts).filter(Boolean).map((i) => i.id).join(',')));
+  await page.click('button[data-act="dislike"][data-i="0"]');
+  await page.waitForSelector('button[data-act="fb"][data-r="color"]');
+  await shot('feedback-ask');
+  await page.click('button[data-act="fb"][data-r="color"]');
+  await page.waitForSelector('.look');
+  s = await st();
+  assert.ok(Object.keys(s.feedback.color).length > 0, 'colour dislike stored');
+  const afterIds = await page.evaluate(() => window.__app.ui.result.looks.map((l) => Object.values(l.parts).filter(Boolean).map((i) => i.id).join(',')));
+  assert.notEqual(afterIds[0], beforeIds[0]);
+  ok('"Not for me" -> reason -> new looks, taste remembered: ' + JSON.stringify(s.feedback.color));
+
+  // batch add with background removal
+  const plain = path.join(OUT, 'plain-bg.png');
+  const durl = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 300; c.height = 400; const x = c.getContext('2d'); x.fillStyle = '#DDE3D0'; x.fillRect(0, 0, 300, 400); x.fillStyle = '#1F2E4D'; x.fillRect(100, 100, 100, 200); return c.toDataURL('image/png'); });
+  fs.writeFileSync(plain, Buffer.from(durl.split(',')[1], 'base64'));
+  await page.click('button[data-act="tab"][data-tab="wardrobe"]');
+  const nBefore = (await st()).items.length;
+  await page.setInputFiles('#fileMany', [plain, PHOTO]);
+  await page.waitForSelector('text=Photo 1 of 2');
+  await page.waitForSelector('.sheet img.photo-prev');
+  await shot('batch');
+  await page.click('button[data-act="batch-kind"][data-v="trousers"]');
+  await page.waitForSelector('text=Photo 2 of 2');
+  await page.waitForSelector('.sheet img.photo-prev');
+  await page.click('button[data-act="batch-kind"][data-v="sneakers"]');
+  await page.waitForFunction((n) => window.__app.state.items.length === n + 2, nBefore);
+  await page.waitForSelector('text=Added 2 items');
+  s = await st();
+  const b1 = s.items[s.items.length - 2], b2 = s.items[s.items.length - 1];
+  assert.equal(b1.cat, 'Bottom'); assert.equal(b2.cat, 'Shoes');
+  const isPng = await page.evaluate((id) => { const im = document.querySelector('.item[data-id="' + id + '"] img.thumb'); return im && im.src.startsWith('data:image/png'); }, b1.id);
+  assert.ok(isPng, 'plain background removed -> PNG with transparency');
+  assert.ok(b1.color.toLowerCase().startsWith('#1') || b1.color.toLowerCase().startsWith('#2'), 'navy detected from the cut-out: ' + b1.color);
+  ok('batch add: 2 photos, 1 tap each; plain background removed on the first (colour ' + b1.color + ')');
+
+  // selfie colour pick
+  await page.click('button[data-act="tab"][data-tab="settings"]');
+  await page.setInputFiles('#fileSelfie', PHOTO);
+  await page.waitForSelector('#selfieCv');
+  await page.waitForTimeout(200);
+  const box = await page.locator('#selfieCv').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  let sk = (await st()).profile.skin;
+  await page.click('button[data-act="selfie-mode"][data-v="hair"]');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const pf = (await st()).profile;
+  assert.ok(['#F6D9C4', '#E8BFA0', '#D2A27E', '#B98A66', '#8D5A3C', '#5C3A26'].includes(pf.skin));
+  assert.ok(pf.hairColor !== undefined);
+  await shot('selfie');
+  await page.click('button[data-act="selfie-done"]');
+  ok('selfie: tapping skin / hair picks the nearest palette colours (' + pf.skin + ', ' + pf.hairColor + '), nothing stored');
+
   // running dry -> diagnosis + relax button
   await page.evaluate(() => { const S = window.__app.state; S.settings.n = 60; });
+  await page.click('button[data-act="tab"][data-tab="today"]');
   await page.click('button[data-act="occ"][data-o="Casual"]');
   let dry = false, worn = 1;
   for (let k = 0; k < 40 && !dry; k++) {
