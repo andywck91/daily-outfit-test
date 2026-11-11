@@ -102,3 +102,7 @@ details#f-fine { margin-top: 12px; border-top: 1px solid var(--line); padding-to
 .bbar .btn:disabled { opacity: .5; }
 
 .bbar .btn.idle { opacity: .6; }
+
+.look.flat { flex-direction: column; }
+.look.flat .fig { width: 100%; max-width: 340px; margin: 0 auto; }
+.zoom.flatz svg { height: auto; width: 100%; max-width: 420px; max-height: 74vh; }

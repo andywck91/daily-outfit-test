@@ -146,17 +146,50 @@
       if (w.code === 'few_looks') h += `<p class="note">${esc(t('today.few', { n: w.n }))}</p>`;
       if (w.code === 'no_outer') h += `<p class="note">${esc(t('today.noouter'))}</p>`;
     });
+    h += `<div class="chips">${chip(t('view.photos'), viewMode() === 'photos', 'view', { v: 'photos' })}${chip(t('view.illus'), viewMode() === 'illus', 'view', { v: 'illus' })}</div>`;
     r.looks.forEach((l, i) => { h += lookCard(l, i); });
     return h + `<p class="muted small center">${esc(t('today.zoom'))}</p>`;
   }
 
+  /* ---- flat-lay: the user's own photos arranged as an outfit board */
+  function viewMode() { return S.profile.view || (Object.keys(photos).length ? 'photos' : 'illus'); }
+  function flatlay(parts, label) {
+    const W = 300, H = 400, G = 8, LW = 184, RX = LW + 2 * G, RW = W - RX - G;
+    const tile = (it, x, y, w, h) => {
+      const r = 14, ph = photos[it.id], cid = 'c' + it.id.replace(/\W/g, '') + Math.round(x) + Math.round(y);
+      const bg = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" style="fill:var(--chip)"/>`;
+      if (ph) return `${bg}<clipPath id="${cid}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"/></clipPath><image href="${ph}" x="${x + 6}" y="${y + 6}" width="${w - 12}" height="${h - 12}" preserveAspectRatio="xMidYMid meet" clip-path="url(#${cid})"/>`;
+      const c = it.color;
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${esc(c)}"/><text x="${x + w / 2}" y="${y + h / 2 + 4}" text-anchor="middle" font-size="13" fill="${inkOn(c)}" font-family="system-ui,sans-serif">${esc(t('type.' + it.type))}</text>`;
+    };
+    let out = '';
+    // left column: dress, or top over bottom
+    if (parts.Dress) out += tile(parts.Dress, G, G, LW, H - 2 * G);
+    else {
+      const a = parts.Top, b = parts.Bottom;
+      if (a && b) { const hh = Math.round((H - 3 * G) * 0.46); out += tile(a, G, G, LW, hh) + tile(b, G, 2 * G + hh, LW, H - 3 * G - hh); }
+      else if (a || b) out += tile(a || b, G, G, LW, H - 2 * G);
+    }
+    // right column: layer, shoes, bag, jewelry
+    const right = ['Outerwear', 'Shoes', 'Bag', 'Jewelry'].map((c) => parts[c]).filter(Boolean);
+    if (right.length) {
+      const hh = (H - G * (right.length + 1)) / right.length;
+      right.forEach((it, k) => { out += tile(it, RX, G + k * (hh + G), RW, hh); });
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label || '')}" preserveAspectRatio="xMidYMid meet">${out}</svg>`;
+  }
+  function lookPicture(l, i) {
+    const label = t('today.look', { n: i + 1 });
+    return viewMode() === 'photos' ? flatlay(l.parts, label) : I.render(S.profile, l.parts, l.groom, { label });
+  }
+
   function lookCard(l, i) {
     const male = S.profile.figure === 'masculine' || !S.profile.makeup;
-    const svg = I.render(S.profile, l.parts, l.groom, { label: t('today.look', { n: i + 1 }) });
+    const svg = lookPicture(l, i);
     const rows = E.CATEGORIES.filter((c) => l.parts[c]).map((c) =>
       `<li><span class="dot" style="background:${esc(l.parts[c].color)}"></span><span class="k">${esc(t('cat.' + c))}</span><span class="v">${esc(nm(l.parts[c]))}</span></li>`).join('');
     const stretch = l.stretch.length ? `<p class="note small">${esc(t('today.stretch', { names: l.stretch.map((id) => { const it = byId(id); return it ? nm(it) : id; }).join(', ') }))}</p>` : '';
-    return `<article class="card look"><button class="fig" data-act="zoom" data-i="${i}" aria-label="${esc(t('today.look', { n: i + 1 }))}">${svg}</button>
+    return `<article class="card look${viewMode() === 'photos' ? ' flat' : ''}"><button class="fig" data-act="zoom" data-i="${i}" aria-label="${esc(t('today.look', { n: i + 1 }))}">${svg}</button>
       <div class="info"><h3>${esc(t('today.look', { n: i + 1 }))}</h3><ul class="pieces">${rows}</ul>
       <p class="groom"><b>${esc(t('today.hair'))}</b> ${esc(t(l.groom.hairKey))}<br><b>${esc(male ? t('today.groom') : t('today.makeup'))}</b> ${esc(l.groom.makeupKeys.map((k) => t(k)).join(' '))}</p>
       ${stretch}<button class="btn primary block" data-act="wear" data-i="${i}">${esc(t('today.wear'))}</button>
@@ -538,7 +571,7 @@
     const root = $('dialog-root');
     if (ui.zoom != null && ui.result && ui.result.looks[ui.zoom]) {
       const l = ui.result.looks[ui.zoom];
-      root.innerHTML = `<div class="overlay" data-act="zoom-close"><div class="zoom">${I.render(S.profile, l.parts, l.groom)}<button class="btn" data-act="zoom-close">${esc(t('common.close'))}</button></div></div>`;
+      root.innerHTML = `<div class="overlay" data-act="zoom-close"><div class="zoom${viewMode() === 'photos' ? ' flatz' : ''}">${viewMode() === 'photos' ? flatlay(l.parts, '') : I.render(S.profile, l.parts, l.groom)}<button class="btn" data-act="zoom-close">${esc(t('common.close'))}</button></div></div>`;
     } else if (ui.dialog) {
       root.innerHTML = `<div class="overlay"><div class="sheet small-sheet" role="alertdialog"><p>${esc(ui.dialog.msg)}</p><div class="row end"><button class="btn" data-act="dlg-no">${esc(t('common.no'))}</button><button class="btn danger" data-act="dlg-yes">${esc(t('common.yes'))}</button></div></div></div>`;
     } else root.innerHTML = '';
@@ -633,6 +666,7 @@
         } else { ui.evMsg = v.trim() ? t('today.eventNone') : ''; render(); }
         break;
       }
+      case 'view': S.profile.view = D.v; save(); render(); break;
       case 'fest': ui.festival = D.k; resetResults(); render(); break;
       case 'dislike': ui.fbOpen = +D.i; render(); break;
       case 'fb': {
@@ -746,7 +780,7 @@
     ui.aircon = OFFICE_OCC.includes(ui.occasion);
     render();
     try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) { /* offline cache is optional */ }
-    window.__app = { get state() { return S; }, ui };   // handy for tests/debugging
+    window.__app = { get state() { return S; }, ui, flatlay, get photos() { return photos; } };   // handy for tests/debugging
   }
   boot();
 })();

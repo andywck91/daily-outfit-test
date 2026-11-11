@@ -233,6 +233,25 @@ const ok = (m) => console.log('ok  -', m);
   assert.ok(b1.color.toLowerCase().startsWith('#1') || b1.color.toLowerCase().startsWith('#2'), 'navy detected from the cut-out: ' + b1.color);
   ok('batch add: 3 photos selected in bulk; 2 new items, T001.jpg attached to existing T001 (was ' + hadPhoto + ' photo before); background removed (colour ' + b1.color + ')');
 
+  // flat-lay board from the user's own photos
+  const flat = await page.evaluate(() => {
+    const A = window.__app, S = A.state, by = (id) => S.items.find((i) => i.id === id);
+    const last = S.items[S.items.length - 2], shoe = S.items[S.items.length - 1];
+    const svg = A.flatlay({ Top: by('T001'), Bottom: last, Shoes: shoe, Bag: S.items.find((i) => i.cat === 'Bag') }, 'x');
+    return { images: (svg.match(/<image /g) || []).length, tiles: (svg.match(/<rect /g) || []).length };
+  });
+  assert.ok(flat.images >= 3, 'photos used as tiles: ' + JSON.stringify(flat));
+  await page.click('button[data-act="tab"][data-tab="today"]');
+  await page.click('button[data-act="suggest"]'); await page.waitForSelector('.look');
+  await page.click('button[data-act="view"][data-v="photos"]');
+  assert.ok(await page.locator('.look.flat svg').count() === 3, 'flat-lay view');
+  await shot('flatlay');
+  await page.click('.look .fig >> nth=0'); await page.waitForSelector('.zoom.flatz svg'); await shot('flatlay-zoom'); await page.click('.zoom button.btn');
+  await page.click('button[data-act="view"][data-v="illus"]');
+  assert.ok(await page.locator('.look:not(.flat) svg').count() === 3, 'illustration view');
+  await page.click('button[data-act="view"][data-v="photos"]');
+  ok('looks can show a flat-lay of the user\'s own photos (' + flat.images + ' photo tiles in the test board), toggle to illustration and back');
+
   // selfie colour pick
   await page.click('button[data-act="tab"][data-tab="settings"]');
   await page.setInputFiles('#fileSelfie', PHOTO);
