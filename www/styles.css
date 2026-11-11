@@ -100,3 +100,5 @@ details#f-fine { margin-top: 12px; border-top: 1px solid var(--line); padding-to
 .bcell.done .bl { background: var(--accent); color: var(--accent-ink); }
 .bbar { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 0 calc(12px + env(safe-area-inset-bottom)); }
 .bbar .btn:disabled { opacity: .5; }
+
+.bbar .btn.idle { opacity: .6; }

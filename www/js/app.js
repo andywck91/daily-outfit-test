@@ -404,14 +404,14 @@
   async function startBatch(files) {
     const list = [...files].filter((f) => /^image\//.test(f.type) || !f.type).slice(0, 200);
     if (!list.length) return;
-    const b = ui.batch = { entries: [], loaded: 0, total: list.length, cat: 'Top' };
+    const b = ui.batch = { entries: [], loaded: 0, total: list.length, cat: 'Top', failed: 0 };
     renderBatch();
     for (const f of list) {
       if (ui.batch !== b) return;      // cancelled
       try {
         const cur = await readPhoto(f, S.profile.removeBg);
         b.entries.push({ name: f.name, cur, match: matchItem(f), cat: null, type: null, sel: false });
-      } catch (e) { /* unreadable photo: skip */ }
+      } catch (e) { b.failed++; }
       b.loaded++;
       if (b.loaded % 4 === 0 || b.loaded === b.total) renderBatch();
     }
@@ -429,7 +429,7 @@
   function refreshBatchBar() {
     const b = ui.batch; if (!b) return;
     const c = batchCounts(), save = $('bsave'), info = $('binfo');
-    if (save) { save.textContent = t('batch.save', { n: c.n }); save.disabled = c.n === 0; }
+    if (save) { save.textContent = t('batch.save', { n: c.n }); save.classList.toggle('idle', c.n === 0); }
     if (info) info.textContent = t('batch.info', { sel: c.sel, left: c.left });
   }
   function renderBatch() {
@@ -440,6 +440,7 @@
     root.innerHTML = `<div class="overlay"><div class="sheet batch" role="dialog" aria-modal="true">
       <div class="row between"><h2>${esc(t('batch.title'))}</h2><button class="btn small ghost" data-act="batch-stop">${esc(t('common.close'))}</button></div>
       ${loading ? `<p class="muted small">${esc(t('batch.loading', { i: b.loaded, n: b.total }))}</p>` : `<p class="muted small">${esc(t('batch.hint'))}</p>`}
+      ${b.failed ? `<p class="note small">${esc(t('batch.failed', { n: b.failed }))}</p>` : ''}
       <div class="row wrap"><button class="btn small" data-act="bsel-all">${esc(t('batch.all'))}</button><button class="btn small" data-act="bsel-open">${esc(t('batch.open'))}</button><button class="btn small ghost" data-act="bsel-none">${esc(t('batch.none'))}</button></div>
       <p class="small muted" id="binfo"></p>
       <div class="bgrid">${b.entries.map(cellHtml).join('')}</div>
@@ -460,15 +461,20 @@
     refreshBatchBar();
   }
   function bSave() {
+    const b = ui.batch;
+    if (!b.entries.some(bAssigned)) { toast(t('batch.needKind')); return; }
+    try { bSaveNow(); } catch (err) { toast(t('batch.err', { m: (err && err.message) || err })); }
+  }
+  function bSaveNow() {
     const b = ui.batch; let added = 0, attached = 0;
     b.entries.forEach((e) => {
       if (e.match) {
         const it = byId(e.match);
-        if (it) { photos[it.id] = e.cur.dataUrl; OF.store.putPhoto(it.id, e.cur.dataUrl); attached++; }
+        if (it) { photos[it.id] = e.cur.dataUrl; Promise.resolve(OF.store.putPhoto(it.id, e.cur.dataUrl)).catch(() => toast(t('batch.err', { m: 'storage' }))); attached++; }
       } else if (e.type) {
         const d = { cat: e.cat, type: e.type, color: e.cur.color }, a = E.autoTags(e.cat, e.type, d.color);
         const it = { id: E.nextId(S, e.cat), addedAt: Date.now(), cat: e.cat, type: e.type, name: autoName('en', d), nameZh: autoName('zh', d), color: d.color, occasions: a.occasions, weather: a.weather, laundry: false };
-        S.items.push(it); photos[it.id] = e.cur.dataUrl; OF.store.putPhoto(it.id, e.cur.dataUrl); added++;
+        S.items.push(it); photos[it.id] = e.cur.dataUrl; Promise.resolve(OF.store.putPhoto(it.id, e.cur.dataUrl)).catch(() => toast(t('batch.err', { m: 'storage' }))); added++;
       }
     });
     save(); resetResults();
