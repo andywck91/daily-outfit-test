@@ -1,0 +1,6 @@
+{
+  "appId": "app.dailyoutfit.test",
+  "appName": "Daily Outfit",
+  "webDir": "www",
+  "server": { "androidScheme": "https" }
+}

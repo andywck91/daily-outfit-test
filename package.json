@@ -1,0 +1,20 @@
+{
+  "name": "daily-outfit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Picks today's outfit from the clothes you already own, without repeating the last N.",
+  "scripts": {
+    "test": "node tests/engine.test.mjs",
+    "serve": "python3 -m http.server 8080 --directory www",
+    "android:add": "cap add android && python3 scripts/patch_manifest.py && cap sync android",
+    "android:apk": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  },
+  "engines": { "node": ">=22" }
+}
