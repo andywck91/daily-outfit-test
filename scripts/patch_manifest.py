@@ -5,6 +5,7 @@ import pathlib, sys
 PERMS = [
     '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',   # weather (approximate location is enough)
     '<uses-permission android:name="android.permission.CAMERA" />',                   # photographing clothes
+    '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
     '<uses-feature android:name="android.hardware.camera" android:required="false" />',
     '<uses-feature android:name="android.hardware.location" android:required="false" />',
 ]

@@ -56,9 +56,90 @@
     out.trip = Object.assign({ days: 5, occasions: ['Casual'], wx: ['hot_humid'], seed: 1, plan: null, checked: {} }, st.trip || {});
     out.customTypes = Array.isArray(st.customTypes) ? st.customTypes.filter((k) => k && k.id && k.cat && k.base && k.label) : [];
     out.feedback = { item: Object.assign({}, st.feedback && st.feedback.item), color: Object.assign({}, st.feedback && st.feedback.color) };
+    out.favs = Array.isArray(st.favs) ? st.favs.filter((f) => f && f.key && f.parts) : [];
     if (st.onboarded == null) out.onboarded = out.items.length > 0 || out.log.length > 0;
     return out;
   }
+
+  /* ------------------------------------------------------------ reasons, favourites, laundry */
+  function whyLine(l) {
+    if (!l.reasons || !l.reasons.length) return '';
+    return `<p class="why small"><b>${esc(t('why.title'))}</b> ${esc(l.reasons.map((r) => t(r.k, { o: r.o ? occShort(r.o) : '', n: r.n })).join(' · '))}</p>`;
+  }
+  const partsIds = (parts) => { const o = {}; E.CATEGORIES.forEach((c) => { if (parts[c]) o[c] = parts[c].id; }); return o; };
+  const favKey = (ids) => Object.keys(ids).sort().map((c) => ids[c]).join('+');
+  function isFav(l) { const k = favKey(partsIds(l.parts)); return S.favs.some((f) => f.key === k); }
+  function toggleFav(i) {
+    const r = ui.result, l = r && r.looks[i]; if (!l) return;
+    const ids = partsIds(l.parts), key = favKey(ids);
+    const at = S.favs.findIndex((f) => f.key === key);
+    if (at >= 0) { S.favs.splice(at, 1); toast(t('fav.removed')); }
+    else { S.favs.unshift({ key, occasion: r.occasion, parts: ids, hairKey: l.groom.hairKey, savedAt: todayStr() }); S.favs = S.favs.slice(0, 30); toast(t('fav.saved')); }
+    save(); render();
+  }
+  function favItems(f) { const o = {}; Object.keys(f.parts).forEach((c) => { const it = byId(f.parts[c]); if (it) o[c] = it; }); return o; }
+  function favsCard() {
+    const list = S.favs.map((f, idx) => ({ f, idx, parts: favItems(f) })).filter((x) => Object.keys(x.parts).length);
+    if (!list.length) return '';
+    const rows = list.map(({ f, idx, parts }) => {
+      const dots = E.CATEGORIES.filter((c) => parts[c]).map((c) => `<span class="dot" style="background:${esc(parts[c].color)}"></span>`).join('');
+      const names = E.CLOTHING.filter((c) => parts[c]).map((c) => nm(parts[c])).join(' + ');
+      const busy = Object.values(parts).filter((it) => E.itemStatus(S, it).status !== 'available').length;
+      return `<li class="favrow"><div class="grow"><div>${dots} <b>${esc(occShort(f.occasion))}</b></div><div class="muted small">${esc(names)}${busy ? ' · ' + esc(t('fav.busy', { n: busy })) : ''}</div></div>
+        <button class="btn small primary" data-act="favwear" data-idx="${idx}">${esc(t('fav.wear'))}</button><button class="btn small ghost" data-act="favdel" data-idx="${idx}" aria-label="${esc(t('common.delete'))}">✕</button></li>`;
+    }).join('');
+    return `<section class="card"><h2>${esc(t('fav.title'))}</h2><ul class="favlist">${rows}</ul></section>`;
+  }
+  function addDays(dateStr, n) {
+    const [y, m, d] = dateStr.split('-').map(Number); const dt = new Date(y, m - 1, d + n);
+    return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+  }
+  /** items put in the wash automatically come back when their day arrives */
+  function refreshLaundry(quiet) {
+    const today = todayStr(); let n = 0;
+    S.items.forEach((it) => { if (it.laundry && it.laundryUntil && it.laundryUntil <= today) { it.laundry = false; delete it.laundryUntil; n++; } });
+    if (n) { save(); if (!quiet) toast(t('laundry.back', { n })); }
+    return n;
+  }
+  const LAUNDRY_CATS = ['Top', 'Dress'];
+  function logOutfit(items, occasion, cond, hairKey) {
+    const n = S.log.length + 1;
+    const entry = { n, date: todayStr(), occasion, cond, items, hair: hairKey };
+    if (S.settings.autoLaundry) {
+      const days = Math.max(1, S.settings.laundryDays || 2), until = addDays(todayStr(), days);
+      const put = [];
+      LAUNDRY_CATS.forEach((c) => { const it = items[c] && byId(items[c]); if (it && !it.laundry) { it.laundry = true; it.laundryUntil = until; put.push(it.id); } });
+      if (put.length) entry.laundered = put;
+    }
+    S.log.push(entry);
+    save(); ui.worn = { n, laundered: (entry.laundered || []).length }; ui.result = null; render(); window.scrollTo({ top: 0 });
+  }
+  function wearFav(idx) {
+    const f = S.favs[idx]; if (!f) return;
+    const parts = favItems(f), items = {};
+    Object.keys(parts).forEach((c) => { items[c] = parts[c].id; });
+    logOutfit(items, f.occasion, currentCond(), f.hairKey || 'hair.down');
+  }
+  function washAll() {
+    let n = 0; S.items.forEach((it) => { if (it.laundry) { it.laundry = false; delete it.laundryUntil; n++; } });
+    save(); resetResults(); render(); toast(t('laundry.back', { n }));
+  }
+  /** daily reminder (Android app only): a repeating local notification at the chosen time */
+  async function scheduleReminder(askPermission) {
+    const C = window.Capacitor; if (!(C && C.isNativePlatform && C.isNativePlatform())) return 'web';
+    const LN = capPlugin('LocalNotifications'); if (!LN) return 'missing';
+    try {
+      await LN.cancel({ notifications: [{ id: 1 }] }).catch(() => {});
+      if (!S.settings.remind) return 'off';
+      let perm = await LN.checkPermissions();
+      if (perm.display !== 'granted' && askPermission) perm = await LN.requestPermissions();
+      if (perm.display !== 'granted') return 'denied';
+      const [hh, mm] = String(S.settings.remindTime || '07:30').split(':').map((x) => parseInt(x, 10));
+      await LN.schedule({ notifications: [{ id: 1, title: t('remind.title'), body: t('remind.body'), schedule: { on: { hour: hh || 0, minute: mm || 0 }, allowWhileIdle: true } }] });
+      return 'ok';
+    } catch (e) { return 'error'; }
+  }
+
   function currentCond() { return E.conditions(ui.weather, ui.wxOverride, ui.aircon); }
   function resetResults() { ui.result = null; ui.worn = null; ui.fbOpen = null; ui.exclude = []; }
 
@@ -75,7 +156,8 @@
   function badge(it) {
     const s = E.itemStatus(S, it);
     const label = s.status === 'resting' ? t('status.resting', { k: s.wait }) : t('status.' + s.status);
-    return `<span class="badge st-${s.status}">${esc(label)}</span>`;
+    const back = s.status === 'laundry' && it.laundryUntil ? ' · ' + t('laundry.until', { d: fmtDate(it.laundryUntil) }) : '';
+    return `<span class="badge st-${s.status}">${esc(label + back)}</span>`;
   }
 
   /* ------------------------------------------------------------ views */
@@ -117,6 +199,7 @@
     h += `<button class="btn primary block big" data-act="suggest">${esc(ui.result ? t('today.again') : t('today.suggest'))}</button>`;
     if (ui.worn) h += wornCard();
     else if (ui.result) h += resultView();
+    if (!ui.result) h += favsCard();
     return h;
   }
 
@@ -136,7 +219,7 @@
 
   function wornCard() {
     const n = ui.worn.n;
-    return `<section class="card ok"><p>${esc(t('today.worn', { n, k: S.settings.n }))}</p>
+    return `<section class="card ok"><p>${esc(t('today.worn', { n, k: S.settings.n }))}</p>${ui.worn.laundered ? `<p class="small">${esc(t('laundry.put', { n: ui.worn.laundered, d: S.settings.laundryDays }))}</p>` : ''}
       <div class="row"><button class="btn primary" data-act="suggest">${esc(t('today.suggestAgain'))}</button><button class="btn" data-act="undo">${esc(t('common.undo'))}</button></div></section>`;
   }
 
@@ -210,7 +293,7 @@
     return `<article class="card look${viewMode() === 'photos' ? ' flat' : ''}"><button class="fig" data-act="zoom" data-i="${i}" aria-label="${esc(t('today.look', { n: i + 1 }))}">${svg}</button>
       <div class="info"><h3>${esc(t('today.look', { n: i + 1 }))}</h3><ul class="pieces">${rows}</ul>
       <p class="groom"><b>${esc(t('today.hair'))}</b> ${esc(t(l.groom.hairKey))}<br><b>${esc(male ? t('today.groom') : t('today.makeup'))}</b> ${esc(l.groom.makeupKeys.map((k) => t(k)).join(' '))}</p>
-      ${stretch}<button class="btn primary block" data-act="wear" data-i="${i}">${esc(t('today.wear'))}</button>
+      ${stretch}${whyLine(l)}<div class="row"><button class="btn primary grow" data-act="wear" data-i="${i}">${esc(t('today.wear'))}</button><button class="btn heart${isFav(l) ? ' on' : ''}" data-act="fav" data-i="${i}" aria-pressed="${isFav(l)}" aria-label="${esc(t('fav.save'))}">${isFav(l) ? '♥' : '♡'}</button></div>
       ${ui.fbOpen === i
         ? `<div class="fbbox"><p class="small">${esc(t('fb.ask'))}</p><div class="chips">${chip(t('fb.color'), false, 'fb', { i, r: 'color' })}${chip(t('fb.occasion', { o: occShort(ui.result.occasion) }), false, 'fb', { i, r: 'occasion' })}${chip(t('fb.piece'), false, 'fb', { i, r: 'piece' })}</div></div>`
         : `<button class="btn small ghost block" data-act="dislike" data-i="${i}">${esc(t('fb.no'))}</button>`}</div></article>`;
@@ -224,7 +307,7 @@
     }).join('');
     const relax = r.suggestN != null
       ? `<p class="small">${esc(t('today.dry.relaxNote', { n: r.suggestN }))}</p><button class="btn primary" data-act="relax" data-n="${r.suggestN}">${esc(t('today.dry.relax', { n: r.suggestN }))}</button>` : '';
-    return `<section class="card warn"><h2>${esc(t('today.dry.title'))}</h2><ul class="plain">${lines}</ul><p class="muted small">${esc(t('today.dry.hint'))}</p>${relax}</section>`;
+    return `<section class="card warn"><h2>${esc(t('today.dry.title'))}</h2><ul class="plain">${lines}</ul><p class="muted small">${esc(t('today.dry.hint'))}</p>${relax}${S.items.some((i) => i.laundry) ? `<button class="btn block" data-act="washall" style="margin-top:8px">${esc(t('laundry.washAll', { n: S.items.filter((i) => i.laundry).length }))}</button>` : ''}</section>`;
   }
 
   function viewWardrobe() {
@@ -240,6 +323,7 @@
       <button class="btn" data-act="pick-csv">${esc(t('wardrobe.importCsv'))}</button><button class="btn" data-act="export-csv">${esc(t('wardrobe.exportCsv'))}</button><button class="btn" data-act="demo">${esc(t('wardrobe.demo'))}</button></div>
       <input type="file" id="fileCsv" hidden><input type="file" id="fileMany" accept="image/*" multiple hidden>
       <p class="muted small">${esc(t('wardrobe.count', { n: S.items.length }))} · ${esc(t('wardrobe.limit'))}</p>
+      ${S.items.some((i) => i.laundry) ? `<button class="btn block" data-act="washall">${esc(t('laundry.washAll', { n: S.items.filter((i) => i.laundry).length }))}</button>` : ''}
       <div class="chips">${chips}</div></section>
       ${rows ? `<section class="list">${rows}</section>` : `<p class="muted center">${esc(t('wardrobe.empty'))}</p>`}`;
   }
@@ -383,6 +467,12 @@
         <button class="btn block" data-act="selfie" style="margin-top:8px">${esc(t('settings.selfie'))}</button><input type="file" id="fileSelfie" accept="image/*" hidden>
         <p class="muted small">${esc(t('settings.fbInfo'))}</p><button class="btn block" data-act="fb-reset">${esc(t('settings.fbReset'))}</button></section>
       <section class="card"><h2>${esc(t('custom.mine'))}</h2>${S.customTypes.length ? `<div class="tags">${S.customTypes.map((k) => `<span class="tag">${esc(k.label)} <span class="muted small">(${esc(t('type.' + k.base))})</span><button class="btn small ghost" data-act="ct-del" data-id="${esc(k.id)}" aria-label="${esc(t('custom.del'))}">✕</button></span>`).join('')}</div>` : `<p class="muted small">${esc(t('custom.none'))}</p>`}</section>
+      <section class="card"><h2>${esc(t('remind.section'))}</h2>
+        <label class="check"><input type="checkbox" data-bind="remind" ${S.settings.remind ? 'checked' : ''}> <span>${esc(t('remind.on'))}</span></label>
+        <label class="lbl" for="remT">${esc(t('remind.time'))}</label><input id="remT" type="time" value="${esc(S.settings.remindTime)}" data-bind="remindTime">
+        <p class="muted small">${esc(ui.remindMsg || t('remind.help'))}</p>
+        <label class="check"><input type="checkbox" data-bind="autoLaundry" ${S.settings.autoLaundry ? 'checked' : ''}> <span>${esc(t('laundry.auto'))}</span></label>
+        <label class="lbl" for="lDays">${esc(t('laundry.days'))}</label><input id="lDays" type="number" inputmode="numeric" min="1" max="14" value="${S.settings.laundryDays}" data-bind="laundryDays"></section>
       <section class="card"><h2>${esc(t('settings.rules'))}</h2>
         <label class="lbl" for="nIn">${esc(t('settings.n'))}</label><input id="nIn" type="number" inputmode="numeric" min="0" max="60" value="${S.settings.n}" data-bind="n">
         <label class="lbl">${esc(t('settings.apply'))}</label><div class="checks">${rules}</div>
@@ -708,13 +798,13 @@
     const r = ui.result, l = r && r.looks[i]; if (!l) return;
     const items = {};
     E.CATEGORIES.forEach((c) => { if (l.parts[c]) items[c] = l.parts[c].id; });
-    const n = S.log.length + 1;
-    S.log.push({ n, date: todayStr(), occasion: r.occasion, cond: r.cond, items, hair: l.groom.hairKey });
-    save(); ui.worn = { n }; ui.result = null; render(); window.scrollTo({ top: 0 });
+    logOutfit(items, r.occasion, r.cond, l.groom.hairKey);
   }
   function undo() {
     if (!S.log.length) return;
-    S.log.pop(); save(); ui.worn = null; ui.result = null; render(); toast(t('toast.undone'));
+    const e = S.log.pop();
+    (e.laundered || []).forEach((id) => { const it = byId(id); if (it) { it.laundry = false; delete it.laundryUntil; } });
+    save(); ui.worn = null; ui.result = null; render(); toast(t('toast.undone'));
   }
   async function locate() {
     ui.wxStatus = 'loading'; render();
@@ -879,12 +969,16 @@
       case 'tab': ui.tab = D.tab; render(); window.scrollTo({ top: 0 }); break;
       case 'lang': setLang(OF.getLang() === 'zh' ? 'en' : 'zh'); break;
       case 'setlang': setLang(D.v); break;
-      case 'occ': ui.occasion = D.o; if (!ui.airconTouched) ui.aircon = OFFICE_OCC.includes(D.o); resetResults(); render(); break;
+      case 'occ': ui.occasion = D.o; S.profile.lastOcc = D.o; save(); if (!ui.airconTouched) ui.aircon = OFFICE_OCC.includes(D.o); resetResults(); render(); break;
       case 'wx': ui.wxOverride = D.k || null; resetResults(); render(); break;
       case 'locate': locate(); break;
       case 'suggest': suggest(); break;
       case 'wear': wear(+D.i); break;
       case 'undo': undo(); break;
+      case 'fav': toggleFav(+D.i); break;
+      case 'favwear': wearFav(+D.idx); break;
+      case 'favdel': S.favs.splice(+D.idx, 1); save(); render(); break;
+      case 'washall': washAll(); break;
       case 'relax': S.settings.n = +D.n; save(); toast(t('toast.relaxed', { n: D.n })); suggest(); break;
       case 'zoom': ui.zoom = +D.i; renderDialog(); break;
       case 'zoom-close': ui.zoom = null; renderDialog(); break;
@@ -893,7 +987,7 @@
       case 'filter': ui.filter = D.c; render(); break;
       case 'add': openSheet(null); break;
       case 'edit': openSheet(D.id); break;
-      case 'laundry': { const it = byId(D.id); if (it) { it.laundry = !it.laundry; save(); resetResults(); render(); } break; }
+      case 'laundry': { const it = byId(D.id); if (it) { it.laundry = !it.laundry; delete it.laundryUntil; save(); resetResults(); render(); } break; }
       case 'pick-csv': $('fileCsv').click(); break;
       case 'pick-json': $('fileJson').click(); break;
       case 'pick-cam': $('fileCam').click(); break;
@@ -945,6 +1039,14 @@
     if (k === 'removeBg') { S.profile.removeBg = b.checked; save(); render(); return; }
     if (k === 'makeup') { S.profile.makeup = b.checked; save(); resetResults(); render(); return; }
     if (k === 'n') { S.settings.n = Math.max(0, Math.min(60, parseInt(b.value, 10) || 0)); save(); resetResults(); render(); return; }
+    if (k === 'autoLaundry') { S.settings.autoLaundry = b.checked; save(); return; }
+    if (k === 'laundryDays') { S.settings.laundryDays = Math.max(1, Math.min(14, parseInt(b.value, 10) || 2)); save(); return; }
+    if (k === 'remind' || k === 'remindTime') {
+      if (k === 'remind') S.settings.remind = b.checked; else if (/^\d\d:\d\d$/.test(b.value)) S.settings.remindTime = b.value;
+      save();
+      scheduleReminder(true).then((r) => { ui.remindMsg = t('remind.st.' + r); if (ui.tab === 'settings') render(); });
+      return;
+    }
     if (k === 'min') { S.settings.minItems = Math.max(1, Math.min(20, parseInt(b.value, 10) || 3)); save(); render(); return; }
     if (k.startsWith('rule:')) { S.settings.rule[k.slice(5)] = b.checked; save(); resetResults(); render(); }
   });
@@ -967,8 +1069,12 @@
     try { loaded = await OF.store.load(); } catch (e) { /* start fresh */ }
     S = normalize(loaded.state); photos = loaded.photos || {};
     OF.setLang(S.profile.lang);
+    if (S.profile.lastOcc && E.OCCASIONS.includes(S.profile.lastOcc)) ui.occasion = S.profile.lastOcc;
     ui.aircon = OFFICE_OCC.includes(ui.occasion);
+    refreshLaundry(true);
     render();
+    scheduleReminder(false);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && refreshLaundry(false)) { resetResults(); render(); } });
     try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) { /* offline cache is optional */ }
     window.__app = { get state() { return S; }, ui, flatlay, get photos() { return photos; } };   // handy for tests/debugging
   }

@@ -368,4 +368,18 @@ test('wear statistics: counts, utilisation, unused, cost per wear', () => {
   assert.deepEqual(all.neverWorn.map((x) => x.item.id), [d1.id]); assert.equal(all.neverWornValue, 300);
 });
 
+test('looks carry short reasons (occasion, weather, freshness)', () => {
+  const s = freshState();
+  const r = E.generate(s, 'Business', ['hot_humid'], { rng: E.mulberry32(3) });
+  assert.ok(r.looks.length);
+  r.looks.forEach((l) => { assert.ok(Array.isArray(l.reasons)); assert.ok(l.reasons.length <= 4); l.reasons.forEach((x) => assert.ok(/^why\./.test(x.k))); });
+  assert.ok(r.looks.some((l) => l.reasons.length > 0), 'at least one look explains itself');
+});
+
+test('default settings include laundry and reminder options', () => {
+  const d = E.defaultState();
+  assert.equal(d.settings.autoLaundry, true); assert.equal(d.settings.laundryDays, 2);
+  assert.equal(d.settings.remind, false); assert.deepEqual(d.favs, []);
+});
+
 console.log(`\n${passed} tests passed`);

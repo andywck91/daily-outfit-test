@@ -111,3 +111,10 @@ details#f-fine { margin-top: 12px; border-top: 1px solid var(--line); padding-to
 .packrow { cursor: pointer; } .packrow input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
 .tripday { padding: 8px 0; border-top: 1px solid var(--line); } .tripday:first-of-type { border-top: 0; }
 .tabs .tab { font-size: 12px; padding-left: 2px; padding-right: 2px; }
+
+.why{margin:6px 0;color:var(--muted,#666)}
+.btn.heart{min-width:48px;font-size:20px;line-height:1;padding:0 12px}
+.btn.heart.on{color:#d6336c}
+.favlist{list-style:none;margin:0;padding:0}
+.favrow{display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid rgba(128,128,128,.25)}
+.favrow:first-child{border-top:0}

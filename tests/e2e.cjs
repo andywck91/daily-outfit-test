@@ -373,7 +373,7 @@ const ok = (m) => console.log('ok  -', m);
   ok('selfie: tapping skin / hair picks the nearest palette colours (' + pf.skin + ', ' + pf.hairColor + '), nothing stored');
 
   // running dry -> diagnosis + relax button
-  await page.evaluate(() => { const S = window.__app.state; S.settings.n = 60; });
+  await page.evaluate(() => { const S = window.__app.state; S.settings.n = 60; S.settings.autoLaundry = false; });
   await page.click('button[data-act="tab"][data-tab="today"]');
   await page.click('button[data-act="occ"][data-o="Casual"]');
   let dry = false, worn = 1;
@@ -397,6 +397,34 @@ const ok = (m) => console.log('ok  -', m);
   s.log.slice(1, worn).forEach((e) => ['Top', 'Bottom', 'Dress', 'Outerwear'].forEach((c) => { if (e.items[c]) { if (seen.has(e.items[c])) dup++; seen.add(e.items[c]); } }));
   assert.equal(dup, 0, 'a clothing item repeated while N=60');
   ok('no clothing item repeated across ' + (worn - 1) + ' consecutive outfits');
+
+  // ---- favourites, reasons, laundry auto-restore
+  await page.click('button[data-act="demo"]').catch(() => {});
+  await page.evaluate(() => { const S = window.__app.state; S.settings.autoLaundry = true; S.settings.n = 10; S.log.length = 0; S.items.forEach((i) => { i.laundry = false; }); });
+  await page.click('button[data-act="tab"][data-tab="today"]');
+  await page.click('button[data-act="occ"][data-o="Casual"]');
+  await page.click('button[data-act="suggest"]');
+  await page.waitForSelector('article.look');
+  assert.ok(await page.$('article.look .why'), 'reasons line shown');
+  ok('looks show why they were picked');
+  await page.click('article.look:first-of-type button[data-act="fav"], article.look button[data-act="fav"]');
+  assert.equal(await page.evaluate(() => window.__app.state.favs.length), 1);
+  await page.click('button[data-act="wear"]');
+  const lau = await page.evaluate(() => { const s = window.__app.state; const e = s.log[s.log.length - 1]; return { l: e.laundered || [], items: s.items.filter((i) => i.laundry).map((i) => i.id), until: s.items.find((i) => i.laundryUntil) && s.items.find((i) => i.laundryUntil).laundryUntil }; });
+  assert.ok(lau.l.length >= 1 && lau.until, 'worn top/dress goes to the wash');
+  ok('wearing a look sends tops/dresses to the wash');
+  await page.click('button[data-act="undo"]');
+  assert.equal(await page.evaluate(() => window.__app.state.items.filter((i) => i.laundry).length), 0);
+  ok('undo brings the laundered pieces back');
+  await page.click('button[data-act="tab"][data-tab="today"]');
+  await page.waitForSelector('button[data-act="favwear"]');
+  await page.click('button[data-act="favwear"]');
+  assert.ok(await page.$('.card.ok'), 'saved look worn in one tap');
+  assert.ok(await page.evaluate(() => window.__app.state.items.some((i) => i.laundry)), 'worn pieces are in the wash');
+  await page.evaluate(() => { window.__app.state.items.forEach((i) => { if (i.laundry) i.laundryUntil = '2000-01-01'; }); document.dispatchEvent(new Event('visibilitychange')); });
+  await page.waitForFunction(() => !window.__app.state.items.some((i) => i.laundry));
+  ok('laundered pieces come back when their day arrives');
+  ok('saved look can be worn with one tap');
 
   // reset
   await page.click('button[data-act="tab"][data-tab="settings"]');

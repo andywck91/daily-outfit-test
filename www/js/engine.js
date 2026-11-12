@@ -107,12 +107,14 @@
         n: 10,
         rule: { Top: true, Bottom: true, Dress: true, Outerwear: true, Shoes: false, Bag: false, Jewelry: false, Hat: false, Scarf: false, Belt: false, Eyewear: false, Watch: false },
         minItems: 3,
+        autoLaundry: true, laundryDays: 2, remind: false, remindTime: '07:30',
       },
       items: [],
       log: [],
       counters: {},
       feedback: { item: {}, color: {} },
       customTypes: [],
+      favs: [],
       onboarded: false,
     };
   }
@@ -398,9 +400,26 @@
       }
     });
 
+    /** short, human-readable reasons (i18n keys + params) why this look was picked */
+    function reasonsFor(p) {
+      const out = [];
+      const clothes = CLOTHING.map((c) => p[c]).filter(Boolean);
+      if (clothes.length && clothes.every((it) => (it.occasions || []).includes(occasion))) out.push({ k: 'why.occ', o: occasion });
+      const wx = cond.filter((c) => c !== 'aircon');
+      if (clothes.length && wx.length && clothes.every((it) => !(it.weather || []).length || (it.weather || []).some((x) => cond.includes(x)))) out.push({ k: 'why.wx' });
+      if (p.Outerwear && (cond.includes('aircon') || cond.includes('cool'))) out.push({ k: 'why.outer' });
+      const cols = ['Top', 'Bottom', 'Dress', 'Outerwear', 'Shoes', 'Bag'].map((c) => p[c] && p[c].color).filter(Boolean);
+      if (cols.length > 1 && harmony(cols) >= 2) out.push({ k: 'why.color' });
+      if (opts.festival && FESTIVAL_COLORS[opts.festival] && clothes.some((it) => FESTIVAL_COLORS[opts.festival].includes(colorKey(it.color)))) out.push({ k: 'why.fest' });
+      const never = clothes.filter((it) => !lastWorn(state, it.id));
+      const rested = clothes.filter((it) => { const l = lastWorn(state, it.id); return l && L - l >= N; });
+      if (clothes.length && never.length + rested.length === clothes.length && L > 0) out.push({ k: 'why.fresh', n: N });
+      else if (never.length) out.push({ k: 'why.new' });
+      return out.slice(0, 4);
+    }
     const looks = chosen.map((c, i) => {
       const stretch = Object.values(c.parts).filter((it) => it && stretchNames.includes(it.id)).map((it) => it.id);
-      return { parts: c.parts, score: c.score, stretch, groom: groom(occasion, cond, state.profile, i) };
+      return { parts: c.parts, score: c.score, stretch, reasons: reasonsFor(c.parts), groom: groom(occasion, cond, state.profile, i) };
     });
     if (looks.length && looks.length < 3) warnings.push({ code: 'few_looks', n: looks.length });
     if (looks.some((l) => l.stretch.length)) warnings.push({ code: 'stretch' });

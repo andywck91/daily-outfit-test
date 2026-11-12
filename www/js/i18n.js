@@ -109,7 +109,12 @@
       'log.tab': 'Outfits', 'stats.tab': 'Statistics', 'stats.p30': 'Last 30 days', 'stats.p90': 'Last 90 days', 'stats.pall': 'All time', 'stats.none': 'Wear and log some outfits, then the numbers show up here.', 'stats.overview': 'Overview',
       'stats.outfits': 'Outfits logged: {n}', 'stats.util': '{a} of {b} clothing pieces worn ({p}%)', 'stats.few': 'Log a few more outfits for more useful numbers.', 'stats.most': 'Most worn', 'stats.times': '{n}x',
       'stats.unused': 'Not worn in this period ({n})', 'stats.unusedHint': 'Wear them soon, or think about selling or donating.', 'stats.cpw': 'Cost per wear', 'stats.cpwLine': '{p} / {n} wears', 'stats.neverWorn': 'Bought but never worn: {n} item(s), {v} in total.',
-      'stats.priceHint': 'Add the price paid when you edit an item to see what each wear costs.', 'stats.byOcc': 'By occasion', 'sheet.price': 'Price paid in {c} (optional)', 'settings.currency': 'Currency symbol'
+      'stats.priceHint': 'Add the price paid when you edit an item to see what each wear costs.', 'stats.byOcc': 'By occasion', 'sheet.price': 'Price paid in {c} (optional)', 'settings.currency': 'Currency symbol',
+      'why.title': 'Why this look:', 'why.occ': 'every piece suits {o}', 'why.wx': 'fits today\'s weather', 'why.outer': 'has a layer for the cold aircon', 'why.color': 'colours go well together', 'why.fest': 'festive colours', 'why.fresh': 'nothing worn in the last {n} outfits', 'why.new': 'includes pieces you have never worn',
+      'fav.save': 'Save this look', 'fav.saved': 'Look saved to favourites', 'fav.removed': 'Removed from favourites', 'fav.title': 'Saved looks', 'fav.wear': 'Wear', 'fav.busy': '{n} piece(s) resting or in the wash',
+      'laundry.auto': 'Auto-wash tops & dresses after wearing', 'laundry.days': 'Days until clean again', 'laundry.put': '{n} piece(s) sent to the wash, back in {d} day(s).', 'laundry.back': '{n} piece(s) are clean and back in your wardrobe', 'laundry.until': 'back {d}', 'laundry.washAll': 'Everything is washed ({n})',
+      'remind.section': 'Daily reminder', 'remind.on': 'Remind me every day', 'remind.time': 'Reminder time', 'remind.help': 'A notification to pick today\'s outfit (Android app only).', 'remind.title': 'What to wear today?', 'remind.body': 'Open Daily Outfit for 3 ideas in one tap.',
+      'remind.st.ok': 'Reminder set.', 'remind.st.off': 'Reminder is off.', 'remind.st.denied': 'Notifications are blocked. Allow them in Android Settings > Apps.', 'remind.st.web': 'Reminders only work in the Android app.', 'remind.st.missing': 'Reminders are not available in this build.', 'remind.st.error': 'Could not set the reminder.',
     },
     zh: {
       'app.title': '每日穿搭',
@@ -217,7 +222,12 @@
       'log.tab': '穿搭记录', 'stats.tab': '穿着统计', 'stats.p30': '近 30 天', 'stats.p90': '近 90 天', 'stats.pall': '全部', 'stats.none': '先穿并记录几套搭配，数据就会出现在这里。', 'stats.overview': '概览',
       'stats.outfits': '共记录 {n} 套搭配', 'stats.util': '{b} 件衣物里穿过 {a} 件（{p}%）', 'stats.few': '再多记录几套，数字会更有参考价值。', 'stats.most': '穿得最多', 'stats.times': '{n} 次',
       'stats.unused': '这段时间没穿过（{n} 件）', 'stats.unusedHint': '尽快穿一穿，或考虑出售、捐赠。', 'stats.cpw': '单次穿着成本', 'stats.cpwLine': '{p} / {n} 次', 'stats.neverWorn': '买了从没穿过：{n} 件，共 {v}。',
-      'stats.priceHint': '编辑衣物时填上购买价格，就能看到每穿一次要花多少钱。', 'stats.byOcc': '按场合', 'sheet.price': '购买价格（{c}，选填）', 'settings.currency': '货币符号'
+      'stats.priceHint': '编辑衣物时填上购买价格，就能看到每穿一次要花多少钱。', 'stats.byOcc': '按场合', 'sheet.price': '购买价格（{c}，选填）', 'settings.currency': '货币符号',
+      'why.title': '推荐理由：', 'why.occ': '每件都适合{o}', 'why.wx': '适合今天的天气', 'why.outer': '带了外套应对冷气', 'why.color': '颜色搭配协调', 'why.fest': '节庆应景配色', 'why.fresh': '最近{n}套都没穿过', 'why.new': '包含还没穿过的衣物',
+      'fav.save': '收藏这套', 'fav.saved': '已收藏', 'fav.removed': '已取消收藏', 'fav.title': '收藏的搭配', 'fav.wear': '穿这套', 'fav.busy': '有{n}件在休息或洗衣中',
+      'laundry.auto': '穿过的上衣/连衣裙自动进入洗衣', 'laundry.days': '几天后恢复可穿', 'laundry.put': '{n}件已送去洗，{d}天后恢复。', 'laundry.back': '{n}件已洗好，回到衣柜', 'laundry.until': '{d}恢复', 'laundry.washAll': '全部洗好了（{n}）',
+      'remind.section': '每日提醒', 'remind.on': '每天提醒我', 'remind.time': '提醒时间', 'remind.help': '定时通知你选今天的穿搭（仅安卓App）。', 'remind.title': '今天穿什么？', 'remind.body': '打开每日穿搭，一键看3套搭配。',
+      'remind.st.ok': '提醒已设置。', 'remind.st.off': '提醒已关闭。', 'remind.st.denied': '通知被禁用，请到安卓「设置 > 应用」中允许通知。', 'remind.st.web': '提醒仅在安卓App中有效。', 'remind.st.missing': '此版本不支持提醒。', 'remind.st.error': '设置提醒失败。',
     },
   };
   let lang = 'en';
