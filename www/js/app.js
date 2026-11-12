@@ -140,6 +140,41 @@
     } catch (e) { return 'error'; }
   }
 
+
+  /* ------------------------------------------------------------ full-screen photo viewer (pinch / double-tap / wheel) */
+  function openViewer(src, caption) {
+    closeViewer();
+    const v = document.createElement('div'); v.id = 'viewer'; v.className = 'viewer';
+    v.innerHTML = `<div class="vbar"><span class="vcap">${esc(caption || '')}</span><span class="vhint">${esc(t('viewer.hint'))}</span><button class="btn small" id="vclose" aria-label="${esc(t('common.close'))}">✕</button></div><div class="vstage" id="vstage"><img id="vimg" alt="" draggable="false"></div>
+      <div class="vzoom"><button class="btn" id="vminus" aria-label="-">−</button><button class="btn" id="vreset">1×</button><button class="btn" id="vplus" aria-label="+">+</button></div>`;
+    document.body.appendChild(v);
+    const img = v.querySelector('#vimg'), stage = v.querySelector('#vstage'); img.src = src;
+    let sc = 1, tx = 0, ty = 0; const ptrs = new Map(); let pinch = null, lastTap = 0;
+    const apply = () => {
+      const w = stage.clientWidth * sc, h = stage.clientHeight * sc, mx = Math.max(0, (w - stage.clientWidth) / 2), my = Math.max(0, (h - stage.clientHeight) / 2);
+      tx = Math.max(-mx, Math.min(mx, tx)); ty = Math.max(-my, Math.min(my, ty));
+      img.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`; v.querySelector('#vreset').textContent = (Math.round(sc * 10) / 10) + '×';
+    };
+    const zoomTo = (ns) => { sc = Math.max(1, Math.min(8, ns)); if (sc === 1) { tx = 0; ty = 0; } apply(); };
+    const dist = () => { const a = [...ptrs.values()]; return Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); };
+    stage.addEventListener('pointerdown', (e) => { stage.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (ptrs.size === 2) pinch = { d: dist(), sc };
+      if (ptrs.size === 1) { const now = Date.now(); if (now - lastTap < 300) { zoomTo(sc > 1.2 ? 1 : 3); lastTap = 0; } else lastTap = now; } });
+    stage.addEventListener('pointermove', (e) => {
+      const p = ptrs.get(e.pointerId); if (!p) return;
+      if (ptrs.size === 2 && pinch) { p.x = e.clientX; p.y = e.clientY; zoomTo(pinch.sc * dist() / pinch.d); return; }
+      if (ptrs.size === 1 && sc > 1) { tx += e.clientX - p.x; ty += e.clientY - p.y; apply(); }
+      p.x = e.clientX; p.y = e.clientY;
+    });
+    const up = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
+    stage.addEventListener('pointerup', up); stage.addEventListener('pointercancel', up);
+    stage.addEventListener('wheel', (e) => { e.preventDefault(); zoomTo(sc * (e.deltaY < 0 ? 1.2 : 1 / 1.2)); }, { passive: false });
+    v.querySelector('#vplus').onclick = () => zoomTo(sc * 1.5); v.querySelector('#vminus').onclick = () => zoomTo(sc / 1.5); v.querySelector('#vreset').onclick = () => zoomTo(1);
+    v.querySelector('#vclose').onclick = closeViewer;
+    apply();
+  }
+  function closeViewer() { const v = document.getElementById('viewer'); if (v) v.remove(); }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeViewer(); });
+
   function currentCond() { return E.conditions(ui.weather, ui.wxOverride, ui.aircon); }
   function resetResults() { ui.result = null; ui.worn = null; ui.fbOpen = null; ui.exclude = []; }
 
@@ -316,7 +351,7 @@
     const chips = ['All'].concat(E.CATEGORIES).map((c) => chip((c === 'All' ? t('wardrobe.all') : t('catp.' + c)) + ' ' + counts[c], ui.filter === c, 'filter', { c })).join('');
     const list = S.items.filter((i) => ui.filter === 'All' || i.cat === ui.filter)
       .sort((a, b) => E.CATEGORIES.indexOf(a.cat) - E.CATEGORIES.indexOf(b.cat) || nm(a).localeCompare(nm(b)));
-    const rows = list.map((it) => `<div class="item" data-act="edit" data-id="${esc(it.id)}" role="button" tabindex="0">${thumb(it)}
+    const rows = list.map((it) => `<div class="item" data-act="edit" data-id="${esc(it.id)}" role="button" tabindex="0">${photos[it.id] ? `<button type="button" class="thumbbtn" data-act="zoomphoto" data-id="${esc(it.id)}" aria-label="${esc(t('viewer.open'))}">${thumb(it)}<span class="mag">🔍</span></button>` : thumb(it)}
       <div class="grow"><b>${esc(nm(it))}</b><div class="muted small">${esc(t('cat.' + it.cat))} · ${esc(typeText(it))} · ${esc(it.id)}</div>${badge(it)}</div>
       <button class="btn small ghost" data-act="laundry" data-id="${esc(it.id)}" aria-pressed="${!!it.laundry}">${esc(t('wardrobe.laundry'))}${it.laundry ? ' ✓' : ''}</button></div>`).join('');
     return `<section class="card"><div class="row wrap"><button class="btn primary" data-act="add">${esc(t('wardrobe.add'))}</button><button class="btn" data-act="pick-many">${esc(t('wardrobe.addMany'))}</button>
@@ -506,18 +541,24 @@
     d.laundry = $('f-laundry').checked;
     sh.fineOpen = $('f-fine').open;
   }
+  function kgroupHtml(c, d) {
+    const on = d.cat === c;
+    return `<div class="kgroup${on ? ' on' : ''}"><span class="klabel"><b>${esc(t('cat.' + c))}</b> — ${esc(t('catdesc.' + c))}</span><div class="chips">${kindChips(c, (k) => on && (k.custom ? d.custom === k.label : !d.custom && d.type === k.base), 'kind')}</div></div>`;
+  }
   function renderSheet() {
     const root = $('sheet-root');
     if (!ui.sheet) { root.innerHTML = ''; return; }
     const sh = ui.sheet, d = sh.draft;
-    const prev = sh.photo ? `<img class="photo-prev" src="${sh.photo}" alt="">` : `<div class="photo-prev sw" style="background:${esc(d.color)}"></div>`;
+    const prev = sh.photo ? `<button type="button" class="thumbbtn" data-act="zoomsheet" aria-label="${esc(t('viewer.open'))}"><img class="photo-prev" src="${sh.photo}" alt=""><span class="mag">🔍</span></button>` : `<div class="photo-prev sw" style="background:${esc(d.color)}"></div>`;
     root.innerHTML = `<div class="overlay" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(t(sh.id ? 'sheet.edit' : 'sheet.add'))}">
       <div class="row between"><h2>${esc(t(sh.id ? 'sheet.edit' : 'sheet.add'))}</h2><button class="btn small ghost" data-act="sheet-close" aria-label="${esc(t('common.close'))}">✕</button></div>
       <div class="row"><div>${prev}</div><div class="stack grow"><button class="btn small" data-act="pick-cam">${esc(t('sheet.camera'))}</button><button class="btn small" data-act="pick-gal">${esc(t('sheet.gallery'))}</button></div></div>
       <input type="file" id="fileCam" accept="image/*" capture="environment" hidden><input type="file" id="fileGal" accept="image/*" hidden>
       ${sh.colorAuto ? `<p class="muted small">${esc(t('sheet.colorAuto'))}</p>` : ''}
       <label class="lbl">${esc(t('sheet.kind'))}</label>
-      ${E.CATEGORIES.map((c) => `<div class="kgroup"><span class="klabel">${esc(t('cat.' + c))}</span><div class="chips">${kindChips(c, (k) => d.cat === c && (k.custom ? d.custom === k.label : !d.custom && d.type === k.base), 'kind')}</div></div>`).join('')}
+      <p class="pick">${d.type ? esc(t('sheet.picked', { cat: t('cat.' + d.cat), kind: d.custom || t('type.' + d.type) })) : esc(t('sheet.pickNone'))}</p>
+      ${['Top', 'Bottom', 'Dress', 'Outerwear'].map((c, i) => (i === 0 ? `<h3 class="grp">${esc(t('sheet.grpClothes'))}</h3>` : '') + kgroupHtml(c, d)).join('')}
+      <h3 class="grp">${esc(t('sheet.grpAcc'))}</h3>${E.CATEGORIES.filter((c) => !['Top', 'Bottom', 'Dress', 'Outerwear'].includes(c)).map((c) => kgroupHtml(c, d)).join('')}
       <label class="lbl" for="f-name">${esc(t('sheet.nameHint'))}</label><input id="f-name" type="text" value="${esc(d.name)}" maxlength="60" autocomplete="off">
       <label class="lbl" for="f-zh">${esc(t('sheet.nameZh'))}</label><input id="f-zh" type="text" value="${esc(d.nameZh)}" maxlength="40" autocomplete="off">
       <label class="lbl" for="f-color">${esc(t('sheet.color'))}</label>
@@ -528,7 +569,7 @@
       <label class="lbl">${esc(t('sheet.occasions'))}</label><div class="chips" id="f-occ">${E.OCCASIONS.map((o) => chip(occLabel(o), d.occasions.includes(o), 'togglechip', { v: o })).join('')}</div>
       <label class="lbl">${esc(t('sheet.weather'))}</label><div class="chips" id="f-wx">${E.WX.map((w) => chip(t('wx.' + w), d.weather.includes(w), 'togglechip', { v: w })).join('')}</div></details>
       <label class="check"><input type="checkbox" id="f-laundry" ${d.laundry ? 'checked' : ''}> <span>${esc(t('sheet.laundry'))}</span></label>
-      <div class="row end"><button class="btn" data-act="sheet-close">${esc(t('common.cancel'))}</button>${sh.id ? `<button class="btn danger" data-act="sheet-delete">${esc(t('common.delete'))}</button>` : ''}<button class="btn primary" data-act="sheet-save">${esc(t('common.save'))}</button></div>
+      <div class="row end"><button class="btn" data-act="sheet-close">${esc(t('common.cancel'))}</button>${sh.id ? `<button class="btn danger" data-act="sheet-delete">${esc(t('common.delete'))}</button>` : ''}<button class="btn primary" data-act="sheet-save">${esc(t('common.save'))}</button>${sh.id ? '' : `<button class="btn primary" data-act="sheet-savenext">${esc(t('sheet.saveNext'))}</button>`}</div>
     </div></div>`;
   }
   /** "Black shirt" / "黑色衬衫" from the colour and the kind of item */
@@ -536,7 +577,7 @@
     const col = OF.tIn(lang, 'color.' + E.colorKey(d.color)), ty = d.custom || OF.tIn(lang, 'type.' + d.type);
     return lang === 'zh' ? col + ty : col.charAt(0).toUpperCase() + col.slice(1) + ' ' + ty.toLowerCase();
   }
-  function saveSheet() {
+  function saveSheet(andNext) {
     readDraft();
     const sh = ui.sheet, d = sh.draft;
     if (!d.type) { toast(t('sheet.needKind')); return; }
@@ -550,7 +591,9 @@
     if (d.price > 0) it.price = d.price; else delete it.price;
     Object.assign(it, { cat: d.cat, type: d.type, name: d.name.trim() || d.nameZh.trim(), nameZh: d.nameZh.trim(), color: d.color, occasions: d.occasions, weather: d.weather, laundry: d.laundry });
     if (sh.photoChanged && sh.photo) { photos[it.id] = sh.photo; OF.store.putPhoto(it.id, sh.photo); }
+    const last = { cat: d.cat, type: d.type, custom: d.custom };
     save(); ui.sheet = null; resetResults(); renderSheet(); render(); toast(t('toast.saved'));
+    if (andNext) { openSheet(null); Object.assign(ui.sheet.draft, last); renderSheet(); const g = $('fileGal'); if (g) g.click(); }
   }
 
   /* ------------------------------------------------------------ photo + colour */
@@ -589,14 +632,14 @@
       const url = URL.createObjectURL(file), img = new Image();
       img.onload = () => {
         try {
-          const r = Math.min(1, (removeBg ? 360 : 480) / Math.max(img.naturalWidth, img.naturalHeight));
+          const r = Math.min(1, (removeBg ? 760 : 1000) / Math.max(img.naturalWidth, img.naturalHeight));
           const c = document.createElement('canvas');
           c.width = Math.max(1, Math.round(img.naturalWidth * r)); c.height = Math.max(1, Math.round(img.naturalHeight * r));
           c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
           URL.revokeObjectURL(url);
           let cut = null;
           if (removeBg) { try { cut = cutout(c); } catch (e) { cut = null; } }
-          resolve({ dataUrl: cut ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.78), color: dominant(c), cut: !!cut });
+          resolve({ dataUrl: cut ? c.toDataURL('image/png') : c.toDataURL('image/jpeg', 0.85), color: dominant(c), cut: !!cut });
         } catch (e) { reject(e); }
       };
       img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
@@ -645,7 +688,8 @@
       if (ui.batch !== b) return;      // cancelled
       try {
         const cur = await readPhoto(f, S.profile.removeBg);
-        b.entries.push({ name: f.name, cur, match: matchItem(f), cat: null, type: null, custom: '', sel: false });
+        const match = matchItem(f), g = match ? null : E.guessKind(f.name);
+        b.entries.push({ name: f.name, cur, match, cat: g ? g.cat : null, type: g ? g.type : null, custom: '', sel: false, guess: !!g });
       } catch (e) { b.failed++; }
       b.loaded++;
       if (b.loaded % 4 === 0 || b.loaded === b.total) renderBatch();
@@ -654,7 +698,7 @@
   }
   const bAssigned = (e) => !!(e.match || e.type);
   function cellHtml(e, i) {
-    const label = e.match ? '→ ' + e.match : e.type ? (e.custom || t('type.' + e.type)) : '?';
+    const label = e.match ? '→ ' + e.match : e.type ? (e.guess ? '~ ' : '') + (e.custom || t('type.' + e.type)) : '?';
     return `<button type="button" class="bcell${e.sel ? ' sel' : ''}${bAssigned(e) ? ' done' : ''}" data-act="bcell" data-i="${i}" id="bc-${i}" aria-pressed="${e.sel}"><img src="${e.cur.dataUrl}" alt=""><span class="bl">${esc(label)}</span></button>`;
   }
   function batchCounts() {
@@ -667,18 +711,36 @@
     if (save) { save.textContent = t('batch.save', { n: c.n }); save.classList.toggle('idle', c.n === 0); }
     if (info) info.textContent = t('batch.info', { sel: c.sel, left: c.left });
   }
+  function nextOpen(from) {
+    const n = ui.batch.entries.length;
+    for (let k = 0; k < n; k++) { const i = (from + k) % n; if (!bAssigned(ui.batch.entries[i])) return i; }
+    return -1;
+  }
+  function renderQuick() {
+    const root = $('sheet-root'), b = ui.batch, e = b.entries[b.quick];
+    const left = b.entries.filter((x) => !bAssigned(x)).length;
+    root.innerHTML = `<div class="overlay"><div class="sheet batch" role="dialog" aria-modal="true">
+      <div class="row between"><h2>${esc(t('quick.title'))}</h2><button class="btn small ghost" data-act="qexit">${esc(t('quick.exit'))}</button></div>
+      <p class="muted small">${esc(t('quick.left', { n: left }))} · ${esc(t('quick.hint'))}</p>
+      <button type="button" class="qpic" data-act="bzoom" data-i="${b.quick}" aria-label="${esc(t('viewer.open'))}"><img src="${e.cur.dataUrl}" alt=""><span class="mag">🔍</span></button>
+      <div class="chips">${E.CATEGORIES.map((c) => chip(t('cat.' + c), b.cat === c, 'bcat', { c })).join('')}</div>
+      <p class="muted small">${esc(t('catdesc.' + b.cat))}</p>
+      <div class="chips">${kindList(b.cat).map((k) => chip(k.label, e.type === k.base && e.cat === b.cat && !e.custom && !k.custom, 'qkind', { c: b.cat, v: k.key })).join('')}${chip(t('kind.add'), false, 'newkind', { c: b.cat })}</div>
+      <div class="row"><button class="btn grow" data-act="qskip">${esc(t('quick.skip'))}</button><button class="btn grow" data-act="qexit">${esc(t('quick.grid'))}</button></div></div></div>`;
+  }
   function renderBatch() {
     const root = $('sheet-root'), b = ui.batch;
     if (!b) { if (!ui.sheet) root.innerHTML = ''; return; }
+    if (b.quick != null && b.entries[b.quick]) { renderQuick(); return; }
     const loading = b.loaded < b.total;
     root.innerHTML = `<div class="overlay"><div class="sheet batch" role="dialog" aria-modal="true">
       <div class="row between"><h2>${esc(t('batch.title'))}</h2><button class="btn small ghost" data-act="batch-stop">${esc(t('common.close'))}</button></div>
       ${loading ? `<p class="muted small">${esc(t('batch.loading', { i: b.loaded, n: b.total }))}</p>` : `<p class="muted small">${esc(t('batch.hint'))}</p>`}
       ${b.failed ? `<p class="note small">${esc(t('batch.failed', { n: b.failed }))}</p>` : ''}
-      <div class="row wrap"><button class="btn small" data-act="bsel-all">${esc(t('batch.all'))}</button><button class="btn small" data-act="bsel-open">${esc(t('batch.open'))}</button><button class="btn small ghost" data-act="bsel-none">${esc(t('batch.none'))}</button></div>
+      <div class="row wrap"><button class="btn small" data-act="bsel-all">${esc(t('batch.all'))}</button><button class="btn small" data-act="bsel-open">${esc(t('batch.open'))}</button><button class="btn small primary" data-act="qstart"${loading ? ' disabled' : ''}>${esc(t('quick.start'))}</button><button class="btn small ghost" data-act="bsel-none">${esc(t('batch.none'))}</button></div>
       <p class="small muted" id="binfo"></p>
       <div class="bgrid">${b.entries.map(cellHtml).join('')}</div>
-      <div class="bbar"><div class="chips">${E.CATEGORIES.map((c) => chip(t('cat.' + c), b.cat === c, 'bcat', { c })).join('')}</div>
+      <div class="bbar"><div class="chips">${E.CATEGORIES.map((c) => chip(t('cat.' + c), b.cat === c, 'bcat', { c })).join('')}</div><p class="muted small" style="margin:4px 0">${esc(t('catdesc.' + b.cat))}</p>
       <div class="chips">${kindList(b.cat).map((k) => chip(k.label, false, 'bkind', { c: b.cat, v: k.key })).join('')}${chip(t('kind.add'), false, 'newkind', { c: b.cat })}</div>
       <button class="btn primary block" id="bsave" data-act="bsave">${esc(t('batch.save', { n: 0 }))}</button></div></div></div>`;
     refreshBatchBar();
@@ -690,7 +752,7 @@
   function bSelect(fn) { ui.batch.entries.forEach((e, i) => { const v = fn(e); if (v !== e.sel) { e.sel = v; bUpdateCell(i); } }); refreshBatchBar(); }
   function bAssign(cat, type) {
     const b = ui.batch; let any = false;
-    b.entries.forEach((e, i) => { if (e.sel) { const k = resolveKind(cat, type); e.cat = cat; e.type = k.type; e.custom = k.custom; e.sel = false; any = true; bUpdateCell(i); } });
+    b.entries.forEach((e, i) => { if (e.sel) { const k = resolveKind(cat, type); e.cat = cat; e.type = k.type; e.custom = k.custom; e.sel = false; e.guess = false; any = true; bUpdateCell(i); } });
     if (!any) { toast(t('batch.pick')); return; }
     refreshBatchBar();
   }
@@ -956,6 +1018,16 @@
       case 'fb-reset': S.feedback = { item: {}, color: {} }; save(); resetResults(); toast(t('toast.fbReset')); break;
       case 'pick-many': $('fileMany').click(); break;
       case 'bcell': { const e = ui.batch.entries[+D.i]; e.sel = !e.sel; bUpdateCell(+D.i); refreshBatchBar(); break; }
+      case 'qstart': { const i = nextOpen(0); if (i < 0) { toast(t('quick.none')); break; } ui.batch.quick = i; renderBatch(); break; }
+      case 'qexit': ui.batch.quick = null; renderBatch(); refreshBatchBar(); break;
+      case 'qskip': { const b = ui.batch; const n = nextOpen(b.quick + 1); b.quick = n < 0 || n === b.quick ? null : n; renderBatch(); refreshBatchBar(); break; }
+      case 'qkind': {
+        const b = ui.batch, e = b.entries[b.quick], k = resolveKind(D.c, D.v);
+        e.cat = D.c; e.type = k.type; e.custom = k.custom; e.guess = false;
+        const n = nextOpen(b.quick + 1); b.quick = n < 0 ? null : n;
+        if (n < 0) toast(t('quick.done'));
+        renderBatch(); refreshBatchBar(); break;
+      }
       case 'bsel-all': bSelect(() => true); break;
       case 'bsel-open': bSelect((e) => !bAssigned(e)); break;
       case 'bsel-none': bSelect(() => false); break;
@@ -995,6 +1067,10 @@
       case 'sheet-close': ui.sheet = null; renderSheet(); break;
       case 'sheet-bg': ui.sheet = null; renderSheet(); break;
       case 'sheet-save': saveSheet(); break;
+      case 'sheet-savenext': saveSheet(true); break;
+      case 'zoomphoto': { const it = byId(D.id); if (it && photos[it.id]) openViewer(photos[it.id], nm(it)); break; }
+      case 'zoomsheet': if (ui.sheet && ui.sheet.photo) openViewer(ui.sheet.photo, ''); break;
+      case 'bzoom': { const e = ui.batch.entries[+D.i]; if (e) openViewer(e.cur.dataUrl, e.name); break; }
       case 'sheet-delete': ask(t('confirm.delete'), () => {
         const id = ui.sheet.id; S.items = S.items.filter((i) => i.id !== id); delete photos[id]; OF.store.delPhoto(id);
         save(); ui.sheet = null; renderSheet(); resetResults(); render(); toast(t('toast.deleted'));

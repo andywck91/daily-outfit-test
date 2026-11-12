@@ -382,4 +382,11 @@ test('default settings include laundry and reminder options', () => {
   assert.equal(d.settings.remind, false); assert.deepEqual(d.favs, []);
 });
 
+test('kind is guessed from a photo file name', () => {
+  assert.deepEqual(E.guessKind('IMG_blue_jeans.jpg'), { cat: 'Bottom', type: 'jeans' });
+  assert.deepEqual(E.guessKind('白色衬衫.png'), { cat: 'Top', type: 'shirt' });
+  assert.deepEqual(E.guessKind('red-sneakers.jpeg'), { cat: 'Shoes', type: 'sneakers' });
+  assert.equal(E.guessKind('IMG_20261105_0932.jpg'), null);
+});
+
 console.log(`\n${passed} tests passed`);

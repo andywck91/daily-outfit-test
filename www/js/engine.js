@@ -639,6 +639,16 @@
     for (const [t, re] of TYPE_WORDS) if (TYPES[cat].includes(t) && re.test(name)) return t;
     return TYPES[cat][0];
   }
+  /** strict guess from a file/item name ("blue_jeans.jpg" -> Bottom/jeans); null when no kind word is found */
+  function guessKind(name) {
+    const n = String(name || '').replace(/\.[^.]+$/, '').replace(/[_\-.]+/g, ' ');
+    for (const [t, re] of TYPE_WORDS) {
+      if (!re.test(n)) continue;
+      const cat = CATEGORIES.find((c) => TYPES[c].includes(t));
+      if (cat) return { cat, type: t };
+    }
+    return null;
+  }
   function nextId(state, cat) {
     state.counters = state.counters || {};
     const prefix = { Top: 'T', Bottom: 'B', Dress: 'D', Outerwear: 'O', Shoes: 'S', Bag: 'G', Jewelry: 'J', Hat: 'H', Scarf: 'F', Belt: 'L', Eyewear: 'E', Watch: 'W' }[cat];
@@ -786,7 +796,7 @@
 
   Object.assign(OF, {
     engine: {
-      planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
+      guessKind, planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
       minFeasibleN, inferType, relevant, autoTags, colorKey, applyFeedback, occasionFromText, FESTIVAL_COLORS,
     },

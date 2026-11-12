@@ -1,5 +1,5 @@
 /* Offline shell: cache the app files, never cache the weather API. */
-const CACHE = 'daily-outfit-v2';
+const CACHE = 'daily-outfit-v3';
 const FILES = ['./', 'index.html', 'styles.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'js/engine.js', 'js/demo.js', 'js/i18n.js', 'js/illustration.js', 'js/store.js', 'js/weather.js', 'js/app.js'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });

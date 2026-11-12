@@ -426,6 +426,46 @@ const ok = (m) => console.log('ok  -', m);
   ok('laundered pieces come back when their day arrives');
   ok('saved look can be worn with one tap');
 
+  // ---- photo viewer, grouped kinds, quick sort, save & next
+  await page.click('button[data-act="tab"][data-tab="wardrobe"]');
+  await page.click('button[data-act="filter"][data-c="All"]');
+  await page.click('button[data-act="zoomphoto"] >> nth=0');
+  await page.waitForSelector('#viewer img');
+  await page.click('#vplus'); await page.click('#vplus');
+  const tf = await page.evaluate(() => document.getElementById('vimg').style.transform);
+  assert.ok(/scale\(2\.25\)/.test(tf), 'viewer zooms: ' + tf);
+  await page.click('#vclose');
+  assert.equal(await page.locator('#viewer').count(), 0);
+  ok('wardrobe photo opens full screen and zooms (' + tf.match(/scale\([^)]*\)/)[0] + ')');
+  await page.click('button[data-act="add"]');
+  await page.waitForSelector('.sheet .grp');
+  assert.ok(await page.locator('.kgroup .klabel').first().innerText().then((x) => /Top/.test(x) && /—/.test(x)), 'group label with description');
+  await page.click('button[data-act="kind"][data-c="Top"] >> nth=0');
+  assert.ok(/Selected: Top/.test(await page.locator('.pick').innerText()));
+  await page.setInputFiles('#fileGal', PHOTO).catch(() => {});
+  await page.click('button[data-act="sheet-savenext"]');
+  await page.waitForSelector('.sheet');
+  assert.ok(/Selected: Top/.test(await page.locator('.pick').innerText()), 'last kind kept for the next item');
+  await page.click('button[data-act="sheet-close"] >> nth=0');
+  ok('kinds are grouped with explanations, the choice is summarised, and "save & add next" keeps the last kind');
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'qs-'));
+  const mk = (n) => { const f = path.join(dir, n); fs.copyFileSync(PHOTO, f); return f; };
+  await page.click('button[data-act="pick-many"]').catch(() => {});
+  await page.setInputFiles('#fileMany', [mk('navy_jeans.jpg'), mk('IMG_0001.jpg'), mk('IMG_0002.jpg')]);
+  await page.waitForSelector('.bgrid .bcell:nth-child(3)');
+  await page.waitForFunction(() => document.querySelector('[data-act="qstart"]') && !document.querySelector('[data-act="qstart"]').disabled);
+  assert.ok(/~ /.test(await page.locator('.bcell').first().innerText()), 'kind guessed from the file name');
+  await page.click('button[data-act="qstart"]');
+  await page.waitForSelector('.qpic');
+  await page.click('button[data-act="bcat"][data-c="Top"]');
+  await page.click('button[data-act="qkind"][data-c="Top"] >> nth=0');
+  await page.click('button[data-act="qkind"][data-c="Top"] >> nth=1');
+  await page.waitForSelector('.bgrid');
+  assert.equal(await page.locator('.bcell.done').count(), 3);
+  await page.click('button[data-act="bsave"]');
+  await page.waitForSelector('.overlay', { state: 'detached' }).catch(() => {});
+  ok('batch: kind guessed from file name, one-tap-per-photo quick sort assigns the rest');
+
   // reset
   await page.click('button[data-act="tab"][data-tab="settings"]');
   await page.click('button[data-act="reset"]');

@@ -115,6 +115,11 @@
       'laundry.auto': 'Auto-wash tops & dresses after wearing', 'laundry.days': 'Days until clean again', 'laundry.put': '{n} piece(s) sent to the wash, back in {d} day(s).', 'laundry.back': '{n} piece(s) are clean and back in your wardrobe', 'laundry.until': 'back {d}', 'laundry.washAll': 'Everything is washed ({n})',
       'remind.section': 'Daily reminder', 'remind.on': 'Remind me every day', 'remind.time': 'Reminder time', 'remind.help': 'A notification to pick today\'s outfit (Android app only).', 'remind.title': 'What to wear today?', 'remind.body': 'Open Daily Outfit for 3 ideas in one tap.',
       'remind.st.ok': 'Reminder set.', 'remind.st.off': 'Reminder is off.', 'remind.st.denied': 'Notifications are blocked. Allow them in Android Settings > Apps.', 'remind.st.web': 'Reminders only work in the Android app.', 'remind.st.missing': 'Reminders are not available in this build.', 'remind.st.error': 'Could not set the reminder.',
+      'viewer.open': 'View larger', 'viewer.hint': 'Pinch or double-tap to zoom, drag to move',
+      'sheet.picked': 'Selected: {cat} › {kind}', 'sheet.pickNone': 'Nothing selected yet. Pick the group below that fits, then the kind.', 'sheet.grpClothes': 'CLOTHES', 'sheet.grpAcc': 'SHOES, BAGS & ACCESSORIES', 'sheet.saveNext': 'Save & add next',
+      'catdesc.Top': 'worn on the upper body: shirt, tee, blouse, knit', 'catdesc.Bottom': 'trousers, jeans, skirts, shorts', 'catdesc.Dress': 'one-piece: dress, jumpsuit, baju kurung, qipao', 'catdesc.Outerwear': 'worn over a top: blazer, jacket, cardigan',
+      'catdesc.Shoes': 'sneakers, heels, sandals, boots', 'catdesc.Bag': 'handbag, tote, backpack, clutch', 'catdesc.Jewelry': 'necklace, earrings, bracelet, ring', 'catdesc.Hat': 'cap, straw hat, bucket hat', 'catdesc.Scarf': 'scarf, shawl, hijab, bandana', 'catdesc.Belt': 'belts', 'catdesc.Eyewear': 'sunglasses, glasses', 'catdesc.Watch': 'watches',
+      'quick.start': 'Sort one by one', 'quick.title': 'Sort one by one', 'quick.left': '{n} left', 'quick.hint': 'tap the kind: it is saved and the next photo appears', 'quick.skip': 'Skip', 'quick.grid': 'Back to grid', 'quick.exit': 'Done', 'quick.none': 'Every photo already has a kind.', 'quick.done': 'All photos sorted. Tap Save.',
     },
     zh: {
       'app.title': '每日穿搭',
@@ -228,6 +233,11 @@
       'laundry.auto': '穿过的上衣/连衣裙自动进入洗衣', 'laundry.days': '几天后恢复可穿', 'laundry.put': '{n}件已送去洗，{d}天后恢复。', 'laundry.back': '{n}件已洗好，回到衣柜', 'laundry.until': '{d}恢复', 'laundry.washAll': '全部洗好了（{n}）',
       'remind.section': '每日提醒', 'remind.on': '每天提醒我', 'remind.time': '提醒时间', 'remind.help': '定时通知你选今天的穿搭（仅安卓App）。', 'remind.title': '今天穿什么？', 'remind.body': '打开每日穿搭，一键看3套搭配。',
       'remind.st.ok': '提醒已设置。', 'remind.st.off': '提醒已关闭。', 'remind.st.denied': '通知被禁用，请到安卓「设置 > 应用」中允许通知。', 'remind.st.web': '提醒仅在安卓App中有效。', 'remind.st.missing': '此版本不支持提醒。', 'remind.st.error': '设置提醒失败。',
+      'viewer.open': '放大查看', 'viewer.hint': '双指缩放或双击放大，拖动查看细节',
+      'sheet.picked': '已选：{cat} › {kind}', 'sheet.pickNone': '还没选择。先找到合适的分组，再点具体种类。', 'sheet.grpClothes': '衣服', 'sheet.grpAcc': '鞋、包与配饰', 'sheet.saveNext': '保存并继续添加',
+      'catdesc.Top': '穿在上半身：衬衫、T恤、雪纺衫、针织衫', 'catdesc.Bottom': '裤子、牛仔裤、半身裙、短裤', 'catdesc.Dress': '连身款：连衣裙、连体裤、巴汝加兰、旗袍', 'catdesc.Outerwear': '穿在上衣外面：西装外套、夹克、开衫',
+      'catdesc.Shoes': '运动鞋、高跟鞋、凉鞋、靴子', 'catdesc.Bag': '手提包、托特包、背包、手拿包', 'catdesc.Jewelry': '项链、耳环、手链、戒指', 'catdesc.Hat': '鸭舌帽、草帽、渔夫帽', 'catdesc.Scarf': '围巾、披肩、头巾、方巾', 'catdesc.Belt': '腰带', 'catdesc.Eyewear': '墨镜、眼镜', 'catdesc.Watch': '手表',
+      'quick.start': '逐张快速分类', 'quick.title': '逐张快速分类', 'quick.left': '还剩 {n} 张', 'quick.hint': '点一下种类就保存并跳到下一张', 'quick.skip': '跳过这张', 'quick.grid': '回到九宫格', 'quick.exit': '完成', 'quick.none': '每张照片都已选好种类。', 'quick.done': '全部分好了，请点保存。',
     },
   };
   let lang = 'en';
