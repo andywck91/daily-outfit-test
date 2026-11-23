@@ -230,6 +230,7 @@
       ${ui.evMsg ? `<p class="muted small">${esc(ui.evMsg)}</p>` : ''}</section>`;
     h += `<section class="card"><h2>${esc(t('today.occasion'))}</h2><div class="chips">${E.OCCASIONS.map((o) => chip(occLabel(o), ui.occasion === o, 'occ', { o })).join('')}</div>
       ${ui.occasion === 'Festive' ? `<label class="lbl">${esc(t('fest.title'))}</label><div class="chips">${[['', 'fest.any'], ['raya', 'fest.raya'], ['cny', 'fest.cny'], ['deepavali', 'fest.deepavali']].map(([k, l]) => chip(t(l), ui.festival === k, 'fest', { k })).join('')}</div>` : ''}</section>`;
+    h += `<section class="card"><label class="check"><input type="checkbox" data-bind="avoidLight" ${S.profile.avoidLight ? 'checked' : ''}> <span><b>${esc(t('light.toggle'))}</b></span></label>${S.profile.avoidLight ? `<p class="muted small">${esc(t('light.count', { n: S.items.filter((i) => E.isLightLower(i)).length }))}</p>` : ''}</section>`;
     h += weatherCard(cond);
     h += `<button class="btn primary block big" data-act="suggest">${esc(ui.result ? t('today.again') : t('today.suggest'))}</button>`;
     if (ui.worn) h += wornCard();
@@ -263,6 +264,7 @@
     if (!r.looks.length) return dryCard(r);
     let h = '';
     r.warnings.forEach((w) => {
+      if (w.code === 'light_used') h += `<p class="note">${esc(t('today.lightUsed'))}</p>`;
       if (w.code === 'few_looks') h += `<p class="note">${esc(t('today.few', { n: w.n }))}</p>`;
       if (w.code === 'no_outer') h += `<p class="note">${esc(t('today.noouter'))}</p>`;
     });
@@ -852,7 +854,7 @@
   function suggest() {
     ui.worn = null;
     ui.fbOpen = null;
-    ui.result = E.generate(S, ui.occasion, currentCond(), { festival: ui.occasion === 'Festive' ? ui.festival || null : null, exclude: ui.exclude });
+    ui.result = E.generate(S, ui.occasion, currentCond(), { festival: ui.occasion === 'Festive' ? ui.festival || null : null, exclude: ui.exclude, avoidLight: !!S.profile.avoidLight });
     render();
     setTimeout(() => { const el = document.querySelector('.look, .card.warn'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30);
   }
@@ -1111,6 +1113,7 @@
     if (k === 'sheet-cat') { readDraft(); ui.sheet.draft.type = E.TYPES[ui.sheet.draft.cat][0]; renderSheet(); return; }
     if (k === 'aircon') { ui.aircon = b.checked; ui.airconTouched = true; resetResults(); render(); return; }
     if (k === 'currency') { S.profile.currency = (b.value || '').trim().slice(0, 4) || 'RM'; save(); return; }
+    if (k === 'avoidLight') { S.profile.avoidLight = b.checked; save(); resetResults(); render(); return; }
     if (k === 'modest') { S.profile.modest = b.checked; save(); resetResults(); render(); return; }
     if (k === 'removeBg') { S.profile.removeBg = b.checked; save(); render(); return; }
     if (k === 'makeup') { S.profile.makeup = b.checked; save(); resetResults(); render(); return; }

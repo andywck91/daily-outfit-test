@@ -246,6 +246,20 @@
     cny: ['red', 'gold', 'white', 'pink'],
     deepavali: ['orange', 'yellow', 'purple', 'pink', 'gold', 'green', 'red', 'blue'],
   };
+  /** "light" = white, cream, pastels, light grey, light khaki */
+  function isLightColor(hex) {
+    const { h, s, l } = hexToHsl(hex || '#000000');
+    if (l >= 0.68) return true;
+    return h >= 30 && h <= 55 && l >= 0.58 && s <= 0.55;   // light khaki / sand
+  }
+  const LONG_OUTER = ['trench', 'kimono'];
+  /** pieces that cover the lower body and are pale (bottoms, dresses, long outer layers) */
+  function isLightLower(it) {
+    if (!it) return false;
+    if (it.cat === 'Bottom' || it.cat === 'Dress') return isLightColor(it.color);
+    if (it.cat === 'Outerwear' && LONG_OUTER.includes(it.type)) return isLightColor(it.color);
+    return false;
+  }
   const MODEST_AVOID = ['tank', 'shorts', 'mini'];
 
   /** record "not for me": reason is 'color' | 'occasion' | 'piece'. Mutates state.feedback / item tags. */
@@ -315,6 +329,7 @@
           if (opts.festival && FESTIVAL_COLORS[opts.festival] && FESTIVAL_COLORS[opts.festival].includes(colorKey(it.color))) s += 1.5;
           if (state.profile && state.profile.modest && MODEST_AVOID.includes(it.type)) s -= 6;
         }
+        if (opts.avoidLight && isLightLower(it)) s -= 8;
         if (opts.exclude && opts.exclude.includes(it.id)) s -= 50;
         return { it, s, stretch };
       });
@@ -365,7 +380,10 @@
     const share = (a, b) => ['Top', 'Bottom', 'Dress'].filter((s) => a.parts[s] && b.parts[s] && a.parts[s].id === b.parts[s].id).length;
     // prefer sharing a piece between good looks over adding a much weaker, "different" one
     const best = combos.length ? combos[0].score : 0;
-    const pools = [combos.filter((c) => c.score >= best - 5), combos];
+    const hasLight = (c) => Object.values(c.parts).some((x) => x && isLightLower(x));
+    const dark = opts.avoidLight ? combos.filter((c) => !hasLight(c)) : [];
+    const darkBest = dark.length ? dark[0].score : 0;
+    const pools = opts.avoidLight ? [dark.filter((c) => c.score >= darkBest - 5), dark, combos] : [combos.filter((c) => c.score >= best - 5), combos];
     outer: for (const pool of pools) {
       for (const maxShare of [0, 1, 3]) {
         for (const c of pool) {
@@ -421,6 +439,7 @@
       const stretch = Object.values(c.parts).filter((it) => it && stretchNames.includes(it.id)).map((it) => it.id);
       return { parts: c.parts, score: c.score, stretch, reasons: reasonsFor(c.parts), groom: groom(occasion, cond, state.profile, i) };
     });
+    if (opts.avoidLight && looks.some((l) => Object.values(l.parts).some((x) => x && isLightLower(x)))) warnings.push({ code: 'light_used' });
     if (looks.length && looks.length < 3) warnings.push({ code: 'few_looks', n: looks.length });
     if (looks.some((l) => l.stretch.length)) warnings.push({ code: 'stretch' });
 
@@ -796,7 +815,7 @@
 
   Object.assign(OF, {
     engine: {
-      guessKind, planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
+      guessKind, isLightColor, isLightLower, planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
       minFeasibleN, inferType, relevant, autoTags, colorKey, applyFeedback, occasionFromText, FESTIVAL_COLORS,
     },

@@ -426,6 +426,18 @@ const ok = (m) => console.log('ok  -', m);
   ok('laundered pieces come back when their day arrives');
   ok('saved look can be worn with one tap');
 
+  // ---- avoid light bottoms toggle
+  await page.click('button[data-act="tab"][data-tab="today"]');
+  await page.check('input[data-bind="avoidLight"]');
+  assert.equal(await page.evaluate(() => window.__app.state.profile.avoidLight), true);
+  assert.ok(/skipped|避开/.test(await page.locator('input[data-bind="avoidLight"]').locator('xpath=ancestor::section').innerText()));
+  await page.click('button[data-act="suggest"]');
+  await page.waitForSelector('article.look');
+  const lightLook = await page.evaluate(() => window.__app.ui.result.looks.some((l) => Object.values(l.parts).some((x) => x && OF.engine.isLightLower(x))));
+  assert.equal(lightLook, false, 'a pale bottom/dress was suggested');
+  await page.uncheck('input[data-bind="avoidLight"]');
+  ok('"avoid light bottoms" switch on the Today page works and persists');
+
   // ---- photo viewer, grouped kinds, quick sort, save & next
   await page.click('button[data-act="tab"][data-tab="wardrobe"]');
   await page.click('button[data-act="filter"][data-c="All"]');

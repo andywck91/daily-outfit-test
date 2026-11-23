@@ -120,6 +120,7 @@
       'catdesc.Top': 'worn on the upper body: shirt, tee, blouse, knit', 'catdesc.Bottom': 'trousers, jeans, skirts, shorts', 'catdesc.Dress': 'one-piece: dress, jumpsuit, baju kurung, qipao', 'catdesc.Outerwear': 'worn over a top: blazer, jacket, cardigan',
       'catdesc.Shoes': 'sneakers, heels, sandals, boots', 'catdesc.Bag': 'handbag, tote, backpack, clutch', 'catdesc.Jewelry': 'necklace, earrings, bracelet, ring', 'catdesc.Hat': 'cap, straw hat, bucket hat', 'catdesc.Scarf': 'scarf, shawl, hijab, bandana', 'catdesc.Belt': 'belts', 'catdesc.Eyewear': 'sunglasses, glasses', 'catdesc.Watch': 'watches',
       'quick.start': 'Sort one by one', 'quick.title': 'Sort one by one', 'quick.left': '{n} left', 'quick.hint': 'tap the kind: it is saved and the next photo appears', 'quick.skip': 'Skip', 'quick.grid': 'Back to grid', 'quick.exit': 'Done', 'quick.none': 'Every photo already has a kind.', 'quick.done': 'All photos sorted. Tap Save.',
+      'light.toggle': 'Avoid light-coloured bottoms', 'light.count': '{n} light piece(s) (bottoms, dresses, long coats) are being skipped.', 'today.lightUsed': 'Not enough dark bottoms for every look, so a light piece was included.',
     },
     zh: {
       'app.title': '每日穿搭',
@@ -238,6 +239,7 @@
       'catdesc.Top': '穿在上半身：衬衫、T恤、雪纺衫、针织衫', 'catdesc.Bottom': '裤子、牛仔裤、半身裙、短裤', 'catdesc.Dress': '连身款：连衣裙、连体裤、巴汝加兰、旗袍', 'catdesc.Outerwear': '穿在上衣外面：西装外套、夹克、开衫',
       'catdesc.Shoes': '运动鞋、高跟鞋、凉鞋、靴子', 'catdesc.Bag': '手提包、托特包、背包、手拿包', 'catdesc.Jewelry': '项链、耳环、手链、戒指', 'catdesc.Hat': '鸭舌帽、草帽、渔夫帽', 'catdesc.Scarf': '围巾、披肩、头巾、方巾', 'catdesc.Belt': '腰带', 'catdesc.Eyewear': '墨镜、眼镜', 'catdesc.Watch': '手表',
       'quick.start': '逐张快速分类', 'quick.title': '逐张快速分类', 'quick.left': '还剩 {n} 张', 'quick.hint': '点一下种类就保存并跳到下一张', 'quick.skip': '跳过这张', 'quick.grid': '回到九宫格', 'quick.exit': '完成', 'quick.none': '每张照片都已选好种类。', 'quick.done': '全部分好了，请点保存。',
+      'light.toggle': '避免浅色下半身', 'light.count': '正在避开 {n} 件浅色衣物（下装、连衣裙、长外套）。', 'today.lightUsed': '深色下装不够，部分搭配里放入了浅色单品。',
     },
   };
   let lang = 'en';

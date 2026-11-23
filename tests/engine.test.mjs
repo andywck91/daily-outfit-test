@@ -389,4 +389,27 @@ test('kind is guessed from a photo file name', () => {
   assert.equal(E.guessKind('IMG_20261105_0932.jpg'), null);
 });
 
+test('avoid light bottoms: pale lower pieces are skipped while dark ones exist, and flagged when unavoidable', () => {
+  assert.ok(E.isLightColor('#FFFFFF') && E.isLightColor('#F5F0E1') && E.isLightColor('#F4C2D0') && E.isLightColor('#D9C9A3'));
+  assert.ok(!E.isLightColor('#1E1E20') && !E.isLightColor('#1F3A6B') && !E.isLightColor('#7A3B2E'));
+  const s = freshState();
+  const lowers = s.items.filter((i) => i.cat === 'Bottom' || i.cat === 'Dress');
+  let sawLightWithout = 0;
+  for (let k = 1; k <= 25; k++) {
+    const r = E.generate(s, 'Casual', ['hot_humid'], { rng: E.mulberry32(k), avoidLight: true });
+    const anyLight = r.looks.some((l) => Object.values(l.parts).some((x) => x && E.isLightLower(x)));
+    if (anyLight && !r.warnings.some((w) => w.code === 'light_used')) sawLightWithout++;
+    const darkCount = lowers.filter((i) => !E.isLightLower(i)).length;
+    if (darkCount >= 3) assert.ok(!anyLight, 'dark bottoms exist but a light one was used (seed ' + k + ')');
+  }
+  assert.equal(sawLightWithout, 0);
+  // only light bottoms left: still produces looks, with a notice
+  const only = freshState();
+  only.items = only.items.filter((i) => !(i.cat === 'Bottom' || i.cat === 'Dress') || E.isLightLower(i));
+  if (only.items.some((i) => i.cat === 'Bottom')) {
+    const r = E.generate(only, 'Casual', ['hot_humid'], { rng: E.mulberry32(1), avoidLight: true });
+    if (r.looks.length) assert.ok(r.warnings.some((w) => w.code === 'light_used'));
+  }
+});
+
 console.log(`\n${passed} tests passed`);
