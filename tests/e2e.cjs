@@ -297,6 +297,7 @@ const ok = (m) => console.log('ok  -', m);
 
   // trip packing list
   await page.click('button[data-act="tab"][data-tab="trip"]');
+  await page.click('button[data-act="planview"][data-v="trip"]');
   await page.fill('#tripDays', '6');
   await page.click('button[data-act="trip-occ"][data-v="Business"]');
   await page.click('button[data-act="trip-occ"][data-v="Beach"]');
@@ -437,6 +438,33 @@ const ok = (m) => console.log('ok  -', m);
   assert.equal(lightLook, false, 'a pale bottom/dress was suggested');
   await page.uncheck('input[data-bind="avoidLight"]');
   ok('"avoid light bottoms" switch on the Today page works and persists');
+
+  // ---- phone calendar (mocked) -> today's occasion, and the week plan
+  await page.evaluate(() => {
+    const d = new Date(); d.setHours(15, 0, 0, 0); const t0 = d.getTime();
+    const d2 = new Date(); d2.setDate(d2.getDate() + 2); d2.setHours(19, 0, 0, 0);
+    window.__calMock = [{ title: 'Client meeting - ABC Sdn Bhd', location: '', allDay: false, start: t0, end: t0 + 36e5 }, { title: 'Wedding dinner', location: '', allDay: false, start: d2.getTime(), end: d2.getTime() + 36e5 * 3 }];
+  });
+  await page.click('button[data-act="tab"][data-tab="today"]');
+  await page.click('button[data-act="cal-today"]');
+  await page.waitForSelector('article.look');
+  assert.equal(await page.evaluate(() => window.__app.ui.occasion), 'ClientVisit');
+  ok('today: phone calendar event "Client meeting" sets the occasion to Client visit and suggests looks');
+  await page.click('button[data-act="tab"][data-tab="trip"]');
+  await page.click('button[data-act="planview"][data-v="week"]');
+  await page.click('button[data-act="week-read"]');
+  await page.waitForFunction(() => window.__app.state.week.days.some((d) => d.occ === 'Formal'));
+  await page.click('button[data-act="week-go"]');
+  await page.waitForSelector('.weekplan');
+  assert.equal(await page.locator('.weekplan').count(), 7);
+  const wk = await page.evaluate(() => { const seen = {}; let dup = 0; window.__app.state.week.plan.forEach((p) => ['Top', 'Bottom', 'Dress'].forEach((c) => { if (p.parts[c]) { if (seen[p.parts[c]]) dup++; seen[p.parts[c]] = 1; } })); return { dup, formal: window.__app.state.week.plan.filter((p) => p.occasion === 'Formal').length }; });
+  assert.equal(wk.dup, 0); assert.equal(wk.formal, 1);
+  await page.click('button[data-act="week-wear"]');
+  assert.ok(await page.$('.card.ok'), 'today\'s planned outfit can be worn in one tap');
+  ok('week plan: 7 days, calendar sets the wedding to Formal, no repeats, today\'s outfit worn in one tap');
+  await page.click('button[data-act="tab"][data-tab="settings"]');
+  await page.waitForSelector('input[data-bind="backupRemind"]');
+  ok('settings: backup reminder + backup button present');
 
   // ---- photo viewer, grouped kinds, quick sort, save & next
   await page.click('button[data-act="tab"][data-tab="wardrobe"]');

@@ -107,7 +107,7 @@
         n: 10,
         rule: { Top: true, Bottom: true, Dress: true, Outerwear: true, Shoes: false, Bag: false, Jewelry: false, Hat: false, Scarf: false, Belt: false, Eyewear: false, Watch: false },
         minItems: 3,
-        autoLaundry: true, laundryDays: 2, remind: false, remindTime: '07:30',
+        autoLaundry: true, laundryDays: 2, remind: false, remindTime: '07:30', backupRemind: false,
       },
       items: [],
       log: [],
@@ -115,6 +115,8 @@
       feedback: { item: {}, color: {} },
       customTypes: [],
       favs: [],
+      week: { weekday: 'Casual', days: [], seed: 1, plan: null },
+      backupLast: '',
       onboarded: false,
     };
   }
@@ -770,6 +772,30 @@
     const wear = [most('Outerwear'), most('Shoes', ['boots', 'sneakers', 'loafers', 'wedges']) || most('Shoes')].filter(Boolean).map((p) => p.item.id);
     return { days, packing, missing, wear };
   }
+  /** One outfit per day for the coming days, honouring the no-repeat rule as if each outfit were worn.
+   *  days: [{date:'YYYY-MM-DD', occasion, festival?}] */
+  function planWeek(state, days, seed, opts) {
+    opts = opts || {};
+    const sim = { ...state, log: state.log.slice(), items: state.items.map((i) => ({ ...i })), settings: { ...state.settings } };
+    const wash = state.settings.autoLaundry ? Math.max(1, state.settings.laundryDays || 2) : 0;
+    const release = {};
+    sim.items.forEach((it) => {
+      if (it.laundry && it.laundryUntil) { const k = days.findIndex((d) => d.date >= it.laundryUntil); release[it.id] = k < 0 ? 1e9 : k; }
+    });
+    const out = [];
+    days.forEach((d, idx) => {
+      sim.items.forEach((it) => { if (release[it.id] != null && release[it.id] <= idx) { it.laundry = false; delete release[it.id]; } });
+      const cond = E_conditions(opts.wx || 'hot_humid', ['Business', 'ClientVisit', 'Formal'].includes(d.occasion));
+      const r = generate(sim, d.occasion, cond, { rng: mulberry32((seed || 1) * 131 + idx * 17), festival: d.festival || null, avoidLight: !!opts.avoidLight, _noSuggest: true });
+      const look = r.looks[0];
+      if (!look) { out.push({ date: d.date, occasion: d.occasion, parts: {}, missing: true }); return; }
+      const items = {}; CATEGORIES.forEach((c) => { if (look.parts[c]) items[c] = look.parts[c].id; });
+      sim.log.push({ n: sim.log.length + 1, date: d.date, occasion: d.occasion, items });
+      if (wash) ['Top', 'Dress'].forEach((c) => { const it = items[c] && sim.items.find((x) => x.id === items[c]); if (it && !it.laundry) { it.laundry = true; release[it.id] = idx + wash; } });
+      out.push({ date: d.date, occasion: d.occasion, parts: look.parts, reasons: look.reasons });
+    });
+    return out;
+  }
   function E_conditions(wx, aircon) { return conditions(null, wx, aircon); }
 
   /* ---------------------------------------------------------------- wear statistics */
@@ -815,7 +841,7 @@
 
   Object.assign(OF, {
     engine: {
-      guessKind, isLightColor, isLightLower, planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
+      guessKind, planWeek, isLightColor, isLightLower, planTrip, stats, CATEGORIES, CORE_CATS, ACCESSORIES, CORE_TYPES, CLOTHING, TYPES, OCCASIONS, WX, defaultState, itemStatus, lastWorn, conditions, generate, gapMatrix, suggestions,
       parseCSV, toCSV, importCSV, wardrobeCSV, nextId, colorFromName, hexToHsl, isNeutral, basicColorName, harmony, mulberry32, groom,
       minFeasibleN, inferType, relevant, autoTags, colorKey, applyFeedback, occasionFromText, FESTIVAL_COLORS,
     },

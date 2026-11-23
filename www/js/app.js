@@ -56,6 +56,8 @@
     out.trip = Object.assign({ days: 5, occasions: ['Casual'], wx: ['hot_humid'], seed: 1, plan: null, checked: {} }, st.trip || {});
     out.customTypes = Array.isArray(st.customTypes) ? st.customTypes.filter((k) => k && k.id && k.cat && k.base && k.label) : [];
     out.feedback = { item: Object.assign({}, st.feedback && st.feedback.item), color: Object.assign({}, st.feedback && st.feedback.color) };
+    out.week = Object.assign({ weekday: 'Casual', days: [], seed: 1, plan: null }, st.week || {});
+    out.backupLast = typeof st.backupLast === 'string' ? st.backupLast : '';
     out.favs = Array.isArray(st.favs) ? st.favs.filter((f) => f && f.key && f.parts) : [];
     if (st.onboarded == null) out.onboarded = out.items.length > 0 || out.log.length > 0;
     return out;
@@ -175,6 +177,131 @@
   function closeViewer() { const v = document.getElementById('viewer'); if (v) v.remove(); }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeViewer(); });
 
+
+  /* ------------------------------------------------------------ phone calendar + week plan */
+  const FORMALITY = ['Formal', 'ClientVisit', 'Business', 'Party', 'Date', 'Festive', 'Travel', 'Sport', 'Beach', 'Casual'];
+  /** events: [{title, location, allDay}] -> most formal occasion found (and festival) */
+  function occFromEvents(events) {
+    let best = null, fest = null, title = '';
+    (events || []).forEach((ev) => {
+      const g = E.occasionFromText((ev.title || '') + ' ' + (ev.location || ''));
+      if (!g.occasion) return;
+      if (best == null || FORMALITY.indexOf(g.occasion) < FORMALITY.indexOf(best)) { best = g.occasion; fest = g.festival; title = ev.title || ''; }
+    });
+    return { occasion: best, festival: fest, title };
+  }
+  /** resolves {status:'ok'|'denied'|'unavailable', events:[{title,location,allDay,start,end}]} */
+  async function readCalendar(fromMs, toMs) {
+    if (window.__calMock) return { status: 'ok', events: window.__calMock.filter((e) => e.start < toMs && e.end > fromMs) };
+    const C = window.Capacitor; if (!(C && C.isNativePlatform && C.isNativePlatform())) return { status: 'unavailable', events: [] };
+    const CAL = capPlugin('CapacitorCalendar'); if (!CAL) return { status: 'unavailable', events: [] };
+    try {
+      const a = await CAL.requestReadOnlyCalendarAccess();
+      if (!a || a.result !== 'granted') return { status: 'denied', events: [] };
+      const r = await CAL.listEventsInRange({ from: fromMs, to: toMs });
+      return { status: 'ok', events: (r.result || []).map((e) => ({ title: e.title || '', location: e.location || '', allDay: !!e.isAllDay, start: e.startDate, end: e.endDate })) };
+    } catch (e) { return { status: 'denied', events: [] }; }
+  }
+  const dayStart = (dateStr) => { const [y, m, d] = dateStr.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
+  async function calToday() {
+    const day = todayStr(), r = await readCalendar(dayStart(day), dayStart(addDays(day, 1)));
+    if (r.status !== 'ok') { ui.evMsg = t('cal.' + r.status); render(); return; }
+    const g = occFromEvents(r.events);
+    if (!r.events.length) ui.evMsg = t('cal.none');
+    else if (!g.occasion) ui.evMsg = t('cal.noMatch', { n: r.events.length });
+    else {
+      ui.occasion = g.occasion; if (g.festival) ui.festival = g.festival;
+      if (!ui.airconTouched) ui.aircon = OFFICE_OCC.includes(g.occasion);
+      ui.evMsg = t('cal.set', { e: g.title, o: occLabel(g.occasion) }); resetResults(); render(); suggest(); return;
+    }
+    render();
+  }
+  const WEEKDAY_CHOICES = ['Casual', 'Business', 'ClientVisit', 'Sport'];
+  function weekInit() {
+    const W = S.week, today = todayStr();
+    if (W.days.length === 7 && W.days[0].date === today) return;
+    const old = {}; W.days.forEach((d) => { old[d.date] = d; });
+    W.days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(today, i), dow = new Date(dayStart(date)).getDay(), wk = dow >= 1 && dow <= 5;
+      W.days.push(old[date] || { date, occ: wk ? W.weekday : 'Casual', fest: '', ev: '' });
+    }
+    W.plan = null;
+  }
+  async function weekRead() {
+    weekInit();
+    const W = S.week, from = dayStart(W.days[0].date), to = dayStart(addDays(W.days[6].date, 1)), r = await readCalendar(from, to);
+    ui.weekMsg = r.status === 'ok' ? '' : t('cal.' + r.status);
+    if (r.status === 'ok') {
+      let n = 0;
+      W.days.forEach((d) => {
+        const evs = r.events.filter((e) => e.start < dayStart(addDays(d.date, 1)) && e.end > dayStart(d.date));
+        d.ev = evs.map((e) => e.title).filter(Boolean).slice(0, 3).join(' · ');
+        const g = occFromEvents(evs);
+        if (g.occasion) { d.occ = g.occasion; d.fest = g.festival || ''; n++; }
+      });
+      ui.weekMsg = t('cal.week', { n: r.events.length, d: n });
+      W.plan = null;
+    }
+    save(); render();
+  }
+  function weekGo(newSeed) {
+    weekInit(); const W = S.week;
+    if (newSeed) W.seed++;
+    const plan = E.planWeek(S, W.days.map((d) => ({ date: d.date, occasion: d.occ, festival: d.fest })), W.seed, { avoidLight: !!S.profile.avoidLight, wx: ui.wxOverride || 'hot_humid' });
+    W.plan = plan.map((p) => ({ date: p.date, occasion: p.occasion, missing: !!p.missing, parts: Object.fromEntries(Object.entries(p.parts).filter(([, it]) => it).map(([c, it]) => [c, it.id])) }));
+    save(); render();
+  }
+  function weekWearToday() {
+    const p = (S.week.plan || []).find((x) => x.date === todayStr()); if (!p) return;
+    const items = {}; Object.keys(p.parts).forEach((c) => { if (byId(p.parts[c])) items[c] = p.parts[c]; });
+    ui.tab = 'today'; logOutfit(items, p.occasion, currentCond(), 'hair.short0');
+  }
+  const dowName = (dateStr) => new Date(dayStart(dateStr)).toLocaleDateString(OF.getLang() === 'zh' ? 'zh-CN' : 'en-GB', { weekday: 'short' });
+  function weekText() {
+    const lines = [t('week.shareTitle'), ''];
+    (S.week.plan || []).forEach((p) => lines.push(dowName(p.date) + ' ' + fmtDate(p.date) + ' · ' + occLabel(p.occasion) + ': ' + (E.CATEGORIES.filter((c) => p.parts[c] && byId(p.parts[c])).map((c) => nm(byId(p.parts[c]))).join(' + ') || '-')));
+    return lines.join('\n');
+  }
+  function viewWeek() {
+    weekInit(); const W = S.week;
+    let h = `<section class="card"><h2>${esc(t('week.title'))}</h2>
+      <label class="lbl" style="margin-top:0">${esc(t('week.usual'))}</label><div class="chips">${WEEKDAY_CHOICES.map((o) => chip(occLabel(o), W.weekday === o, 'week-usual', { v: o })).join('')}</div>
+      <button class="btn block" data-act="week-read" style="margin-top:10px">${esc(t('week.read'))}</button>${ui.weekMsg ? `<p class="muted small">${esc(ui.weekMsg)}</p>` : ''}
+      <div class="list" style="margin-top:6px">${W.days.map((d, i) => `<div class="weekrow"><div class="wd"><b>${esc(dowName(d.date))}</b> <span class="muted small">${esc(fmtDate(d.date))}</span>${d.ev ? `<div class="muted small">${esc(d.ev)}</div>` : ''}</div>
+        <select data-bind="weekocc:${i}" aria-label="${esc(dowName(d.date))}">${E.OCCASIONS.map((o) => `<option value="${o}"${d.occ === o ? ' selected' : ''}>${esc(occLabel(o))}</option>`).join('')}</select></div>`).join('')}</div>
+      <button class="btn primary block" data-act="week-go" style="margin-top:10px">${esc(t('week.go'))}</button></section>`;
+    if (W.plan) {
+      const rows = W.plan.map((p) => {
+        const parts = E.CATEGORIES.filter((c) => p.parts[c] && byId(p.parts[c])).map((c) => byId(p.parts[c]));
+        const dots = parts.map((it) => `<span class="dot" style="background:${esc(it.color)}"></span>`).join('');
+        return `<li class="weekplan"><div class="grow"><b>${esc(dowName(p.date))}</b> <span class="muted small">${esc(occLabel(p.occasion))}</span><div>${dots} <span class="small">${esc(p.missing ? t('week.none') : parts.filter((it) => E.CLOTHING.includes(it.cat)).map(nm).join(' + '))}</span></div></div>${p.date === todayStr() && !p.missing ? `<button class="btn small primary" data-act="week-wear">${esc(t('week.wearToday'))}</button>` : ''}</li>`;
+      }).join('');
+      h += `<section class="card"><h2>${esc(t('week.plan'))}</h2><ul class="favlist">${rows}</ul>
+        <div class="row wrap"><button class="btn" data-act="week-redo">${esc(t('trip.redo'))}</button><button class="btn" data-act="week-share">${esc(t('trip.share'))}</button></div><p class="muted small">${esc(t('week.note'))}</p></section>`;
+    }
+    return h;
+  }
+  function backupCard() {
+    if (S.items.length < 5) return '';
+    const days = S.backupLast ? Math.round((dayStart(todayStr()) - dayStart(S.backupLast)) / 864e5) : null;
+    if (days != null && days < 14) return '';
+    return `<section class="card note"><p><b>${esc(t('backup.title'))}</b></p><p class="small">${esc(days == null ? t('backup.never') : t('backup.old', { n: days }))}</p><button class="btn primary block" data-act="export-json">${esc(t('backup.now'))}</button></section>`;
+  }
+  async function scheduleBackupReminder(askPermission) {
+    const C = window.Capacitor; if (!(C && C.isNativePlatform && C.isNativePlatform())) return 'web';
+    const LN = capPlugin('LocalNotifications'); if (!LN) return 'missing';
+    try {
+      await LN.cancel({ notifications: [{ id: 2 }] }).catch(() => {});
+      if (!S.settings.backupRemind) return 'off';
+      let perm = await LN.checkPermissions();
+      if (perm.display !== 'granted' && askPermission) perm = await LN.requestPermissions();
+      if (perm.display !== 'granted') return 'denied';
+      await LN.schedule({ notifications: [{ id: 2, title: t('backup.ntitle'), body: t('backup.nbody'), schedule: { on: { weekday: 1, hour: 20, minute: 0 }, allowWhileIdle: true } }] });
+      return 'ok';
+    } catch (e) { return 'error'; }
+  }
+
   function currentCond() { return E.conditions(ui.weather, ui.wxOverride, ui.aircon); }
   function resetResults() { ui.result = null; ui.worn = null; ui.fbOpen = null; ui.exclude = []; }
 
@@ -227,7 +354,9 @@
     const cond = currentCond();
     let h = `<section class="card"><label class="lbl" style="margin-top:0" for="evIn">${esc(t('today.event'))}</label>
       <div class="row"><input id="evIn" type="text" maxlength="80" value="${esc(ui.event)}" placeholder="${esc(t('today.eventPh'))}" autocomplete="off"><button class="btn" data-act="event-go">${esc(t('today.eventGo'))}</button></div>
+      <button class="btn small block" data-act="cal-today" style="margin-top:6px">${esc(t('cal.today'))}</button>
       ${ui.evMsg ? `<p class="muted small">${esc(ui.evMsg)}</p>` : ''}</section>`;
+    h = backupCard() + h;
     h += `<section class="card"><h2>${esc(t('today.occasion'))}</h2><div class="chips">${E.OCCASIONS.map((o) => chip(occLabel(o), ui.occasion === o, 'occ', { o })).join('')}</div>
       ${ui.occasion === 'Festive' ? `<label class="lbl">${esc(t('fest.title'))}</label><div class="chips">${[['', 'fest.any'], ['raya', 'fest.raya'], ['cny', 'fest.cny'], ['deepavali', 'fest.deepavali']].map(([k, l]) => chip(t(l), ui.festival === k, 'fest', { k })).join('')}</div>` : ''}</section>`;
     h += `<section class="card"><label class="check"><input type="checkbox" data-bind="avoidLight" ${S.profile.avoidLight ? 'checked' : ''}> <span><b>${esc(t('light.toggle'))}</b></span></label>${S.profile.avoidLight ? `<p class="muted small">${esc(t('light.count', { n: S.items.filter((i) => E.isLightLower(i)).length }))}</p>` : ''}</section>`;
@@ -431,6 +560,12 @@
     p.days.forEach((d) => lines.push(t('trip.day', { d: d.day }) + ' · ' + occLabel(d.occasion) + ': ' + (Object.values(d.parts).map(nm).join(' + ') || '-')));
     return lines.join('\n');
   }
+  function viewPlan() {
+    const v = ui.planView || 'week';
+    const sw = `<div class="chips" style="margin-bottom:8px">${chip(t('plan.week'), v === 'week', 'planview', { v: 'week' })}${chip(t('plan.trip'), v === 'trip', 'planview', { v: 'trip' })}</div>`;
+    if (!S.items.length) return `<section class="card center"><p>${esc(t('trip.empty'))}</p></section>`;
+    return sw + (v === 'week' ? viewWeek() : viewTrip());
+  }
   function viewTrip() {
     if (!S.items.length) return `<section class="card center"><p>${esc(t('trip.empty'))}</p></section>`;
     const tr = S.trip, occs = ['Casual', 'Business', 'ClientVisit', 'Beach', 'Sport', 'Date', 'Party', 'Formal', 'Travel', 'Festive'];
@@ -510,6 +645,10 @@
         <p class="muted small">${esc(ui.remindMsg || t('remind.help'))}</p>
         <label class="check"><input type="checkbox" data-bind="autoLaundry" ${S.settings.autoLaundry ? 'checked' : ''}> <span>${esc(t('laundry.auto'))}</span></label>
         <label class="lbl" for="lDays">${esc(t('laundry.days'))}</label><input id="lDays" type="number" inputmode="numeric" min="1" max="14" value="${S.settings.laundryDays}" data-bind="laundryDays"></section>
+      <section class="card"><h2>${esc(t('backup.section'))}</h2>
+        <label class="check"><input type="checkbox" data-bind="backupRemind" ${S.settings.backupRemind ? 'checked' : ''}> <span>${esc(t('backup.remind'))}</span></label>
+        <p class="muted small">${esc(ui.backupMsg || t('backup.last', { d: S.backupLast ? fmtDate(S.backupLast) : t('backup.neverShort') }))}</p>
+        <button class="btn block" data-act="export-json">${esc(t('backup.now'))}</button></section>
       <section class="card"><h2>${esc(t('settings.rules'))}</h2>
         <label class="lbl" for="nIn">${esc(t('settings.n'))}</label><input id="nIn" type="number" inputmode="numeric" min="0" max="60" value="${S.settings.n}" data-bind="n">
         <label class="lbl">${esc(t('settings.apply'))}</label><div class="checks">${rules}</div>
@@ -913,19 +1052,19 @@
         }
         const { uri } = await FS.getUri({ path: name, directory: 'CACHE' });
         await SH.share({ title: name, dialogTitle: name, url: uri });
-        return;
+        return true;
       } catch (e) {
-        if (/cancel/i.test(String((e && e.message) || e))) return;
+        if (/cancel/i.test(String((e && e.message) || e))) return false;
         toast(t('toast.exportFail', { m: String((e && e.message) || e).slice(0, 80) }));
       }
     }
     try {
       if (navigator.canShare && typeof File === 'function') {
         const f = new File([text], name, { type: mime });
-        if (navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return; }
+        if (navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); return true; }
       }
-    } catch (e) { if (e && e.name === 'AbortError') return; }
-    download(name, mime, text); toast(t('toast.exported', { f: name }));
+    } catch (e) { if (e && e.name === 'AbortError') return false; }
+    download(name, mime, text); toast(t('toast.exported', { f: name })); return true;
   }
   const stamp = () => new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
@@ -1050,6 +1189,14 @@
       case 'wear': wear(+D.i); break;
       case 'undo': undo(); break;
       case 'fav': toggleFav(+D.i); break;
+      case 'planview': ui.planView = D.v; render(); break;
+      case 'week-usual': S.week.weekday = D.v; S.week.days = []; S.week.plan = null; save(); render(); break;
+      case 'week-read': weekRead(); break;
+      case 'week-go': weekGo(false); break;
+      case 'week-redo': weekGo(true); break;
+      case 'week-wear': weekWearToday(); break;
+      case 'week-share': shareFile('outfit-week-' + stamp() + '.txt', 'text/plain', weekText()); break;
+      case 'cal-today': calToday(); break;
       case 'favwear': wearFav(+D.idx); break;
       case 'favdel': S.favs.splice(+D.idx, 1); save(); render(); break;
       case 'washall': washAll(); break;
@@ -1088,7 +1235,7 @@
       case 'skin': S.profile.skin = D.v; save(); resetResults(); render(); break;
       case 'haircolor': S.profile.hairColor = D.v; save(); resetResults(); render(); break;
       case 'hairlen': S.profile.hairLength = D.v; save(); resetResults(); render(); break;
-      case 'export-json': shareFile('daily-outfit-backup-' + stamp() + '.json', 'application/json', JSON.stringify({ app: 'daily-outfit', version: 1, state: S, photos })); break;
+      case 'export-json': shareFile('daily-outfit-backup-' + stamp() + '.json', 'application/json', JSON.stringify({ app: 'daily-outfit', version: 1, state: S, photos })).then((ok) => { if (ok) { S.backupLast = todayStr(); save(); render(); } }); break;
       case 'export-csv': shareFile('wardrobe-' + stamp() + '.csv', 'text/csv', E.wardrobeCSV(S)); break;
       case 'reset': ask(t('confirm.reset'), async () => { await OF.store.clear(); S = normalize(null); S.profile.lang = OF.getLang(); photos = {}; save(); resetResults(); ui.tab = 'today'; render(); }); break;
       case 'install': if (installEvt) { installEvt.prompt(); installEvt = null; render(); } break;
@@ -1118,6 +1265,8 @@
     if (k === 'removeBg') { S.profile.removeBg = b.checked; save(); render(); return; }
     if (k === 'makeup') { S.profile.makeup = b.checked; save(); resetResults(); render(); return; }
     if (k === 'n') { S.settings.n = Math.max(0, Math.min(60, parseInt(b.value, 10) || 0)); save(); resetResults(); render(); return; }
+    if (k === 'backupRemind') { S.settings.backupRemind = b.checked; save(); scheduleBackupReminder(true).then((r) => { ui.backupMsg = t('remind.st.' + r); if (ui.tab === 'settings') render(); }); return; }
+    if (k.startsWith('weekocc:')) { const d = S.week.days[+k.slice(8)]; if (d) { d.occ = b.value; d.fest = ''; S.week.plan = null; save(); render(); } return; }
     if (k === 'autoLaundry') { S.settings.autoLaundry = b.checked; save(); return; }
     if (k === 'laundryDays') { S.settings.laundryDays = Math.max(1, Math.min(14, parseInt(b.value, 10) || 2)); save(); return; }
     if (k === 'remind' || k === 'remindTime') {
@@ -1139,7 +1288,7 @@
   function render() {
     document.documentElement.lang = OF.getLang() === 'zh' ? 'zh-CN' : 'en';
     document.title = t('app.title');
-    const views = { today: viewToday, wardrobe: viewWardrobe, trip: viewTrip, history: viewHistory, gaps: viewGaps, settings: viewSettings };
+    const views = { today: viewToday, wardrobe: viewWardrobe, trip: viewPlan, history: viewHistory, gaps: viewGaps, settings: viewSettings };
     $('app').innerHTML = header() + '<main>' + views[ui.tab]() + '</main>' + tabbar();
   }
 
@@ -1152,7 +1301,7 @@
     ui.aircon = OFFICE_OCC.includes(ui.occasion);
     refreshLaundry(true);
     render();
-    scheduleReminder(false);
+    scheduleReminder(false); scheduleBackupReminder(false);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && refreshLaundry(false)) { resetResults(); render(); } });
     try { if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) { /* offline cache is optional */ }
     window.__app = { get state() { return S; }, ui, flatlay, get photos() { return photos; } };   // handy for tests/debugging

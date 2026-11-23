@@ -412,4 +412,17 @@ test('avoid light bottoms: pale lower pieces are skipped while dark ones exist, 
   }
 });
 
+test('week plan: one outfit a day, no clothing repeats within the rule, occasions respected', () => {
+  const s = freshState();
+  const days = ['2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27', '2026-11-28', '2026-11-29', '2026-11-30'].map((date, i) => ({ date, occasion: i < 4 ? 'Business' : 'Casual' }));
+  const plan = E.planWeek(s, days, 1, { wx: 'hot_humid' });
+  assert.equal(plan.length, 7);
+  assert.equal(plan.filter((p) => p.missing).length, 0);
+  const seen = new Set();
+  plan.forEach((p) => ['Top', 'Bottom', 'Dress', 'Outerwear'].forEach((c) => { if (p.parts[c]) { assert.ok(!seen.has(p.parts[c].id), 'repeated ' + p.parts[c].id); seen.add(p.parts[c].id); } }));
+  assert.equal(s.log.length, 0, 'planning does not touch the real log');
+  const empty = E.planWeek(E.defaultState(), days.slice(0, 2), 1, {});
+  assert.deepEqual(empty.map((p) => p.missing), [true, true]);
+});
+
 console.log(`\n${passed} tests passed`);
